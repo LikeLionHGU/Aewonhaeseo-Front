@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import logo from '../assets/logo.png'
-import ontologyImage from '../assets/rectangle-6.png'
-import nlSqlImage from '../assets/rectangle-9.png'
-import evidenceImage from '../assets/rectangle-10.png'
-import glowLine from '../assets/vector-1.svg'
-import glowDot from '../assets/ellipse-4.svg'
+import ontologyImage from '../assets/feature-ontology.png'
+import nlSqlImage from '../assets/feature-nl-sql.png'
+import evidenceImage from '../assets/feature-evidence.png'
+import glowLine from '../assets/glow-line.svg'
+import glowDot from '../assets/glow-dot.svg'
 import { useDesignScale } from '../composables/useDesignScale'
 
 const DESIGN_WIDTH = 1920

@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import logo from '../assets/logo.png'
-import dropdownIcon from '../assets/dropdown.svg'
+import dropdownIcon from '../assets/chevron-down.svg'
 import { useDesignScale } from '../composables/useDesignScale'
 
 const router = useRouter()

@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import logo from '../assets/logo.png'
-import dropdownFillIcon from '../assets/dropdown-fill.svg'
+import caretDownIcon from '../assets/caret-down.svg'
 import { useDesignScale } from '../composables/useDesignScale'
 
 const DESIGN_WIDTH = 1920
@@ -229,17 +229,17 @@ const overHighlight = computed(() => ({
       <b :class="[$style.b14, 'clickable']" @click="compare = '비교 없음'">비교 없음</b>
       <b :class="[$style.b15, 'clickable']" @click="compare = '+전년 동기'">+전년 동기</b>
       <b :class="[$style.b16, 'clickable']" @click="compare = '+다른 지점'">+다른 지점</b>
-      <img :class="$style.polygonIcon" :src="dropdownFillIcon" alt="" />
+      <img :class="$style.polygonIcon" :src="caretDownIcon" alt="" />
     </template>
     <template v-else-if="activeTab === 'table'">
       <div :class="$style.compareSelect" />
       <b :class="$style.compareSelectLabel">전년 동기 (2024)</b>
-      <img :class="$style.compareSelectArrow" :src="dropdownFillIcon" alt="" />
+      <img :class="$style.compareSelectArrow" :src="caretDownIcon" alt="" />
     </template>
     <template v-else>
       <div :class="$style.thresholdSelect" />
       <b :class="$style.thresholdSelectLabel">하천 생활환경기준 등급</b>
-      <img :class="$style.thresholdSelectArrow" :src="dropdownFillIcon" alt="" />
+      <img :class="$style.thresholdSelectArrow" :src="caretDownIcon" alt="" />
     </template>
     <b :class="$style.sql" :style="{ top: `${2209 + tabOffset}px` }">이 숫자가 어떻게 나왔는지 확인할 수 있어요 - 생성된 SQL과 원본 데이터 행</b>
     <template v-if="activeTab === 'graph'">
