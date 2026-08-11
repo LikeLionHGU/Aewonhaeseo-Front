@@ -1,0 +1,397 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import logo from '../assets/logo.png'
+import uploadIcon from '../assets/upload.svg'
+import analyzeIcon from '../assets/analyze.svg'
+import { useDesignScale } from '../composables/useDesignScale'
+
+const DESIGN_WIDTH = 1920
+const DESIGN_HEIGHT = 1330
+
+const scale = useDesignScale(DESIGN_WIDTH)
+const router = useRouter()
+
+const hasData = ref(false)
+
+function connectSampleData() {
+  fileName.value = ''
+  uploadError.value = ''
+  hasData.value = true
+}
+
+const ACCEPT = '.csv,.xls,.xlsx'
+const ALLOWED_EXT = ['csv', 'xls', 'xlsx']
+
+const fileInput = ref<HTMLInputElement | null>(null)
+const fileName = ref('')
+const uploadError = ref('')
+
+function pickFile() {
+  fileInput.value?.click()
+}
+
+function onFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  if (!ALLOWED_EXT.includes(ext)) {
+    uploadError.value = '엑셀(.xlsx, .xls) 또는 CSV 파일만 올릴 수 있어요.'
+    fileName.value = ''
+    hasData.value = false
+  } else {
+    uploadError.value = ''
+    fileName.value = file.name
+    hasData.value = true
+  }
+  // 같은 파일을 다시 골라도 change 가 뜨도록 초기화
+  input.value = ''
+}
+</script>
+
+<template>
+  <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
+  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+    <b :class="$style.b">무엇부터 시작할까요?</b>
+    <b :class="$style.b2">데이터를 먼저 연결하거나, 이미 연결된 데이터로 바로 분석을 시작할 수 있어요.</b>
+    <div :class="$style.child" />
+    <div :class="$style.item" />
+    <div :class="$style.inner" />
+    <img :class="$style.groupIcon" :src="uploadIcon" alt="" />
+    <b :class="$style.b3">데이터 올리기</b>
+    <b :class="$style.b4">분석하기</b>
+    <div :class="$style.csv">엑셀·CSV 파일을 업로드하면 <br/>데이터를 자동으로 정리하고 용어를 표준화합니다.</div>
+    <div :class="$style.bod">“작년 인천 지점 BOD 월별 추이 보여줘"<br/>궁금한 내용을 입력하면, 근거와 함께 분석 결과를 확인할 수 있어요.</div>
+    <img :class="$style.child2" :src="analyzeIcon" alt="" />
+    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'clickable']" @click="router.push('/')">
+      <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
+      <b :class="$style.b5">물</b>
+      <b :class="$style.b6">볼래</b>
+      <b :class="$style.b7">ㅓ</b>
+    </div>
+    <div :class="$style.ellipseDiv" />
+    <input ref="fileInput" type="file" :accept="ACCEPT" :class="$style.fileInput" @change="onFileChange" />
+    <div :class="[$style.rectangleParent, 'clickable']" role="button" @click="pickFile">
+      <div :class="$style.groupChild" />
+      <div :class="$style.csv2">엑셀·CSV 업로드</div>
+    </div>
+    <div v-if="fileName" :class="$style.uploadedName">{{ fileName }}</div>
+    <div v-else-if="uploadError" :class="$style.uploadError">{{ uploadError }}</div>
+    <template v-if="!hasData">
+      <div :class="[$style.rectangleGroup, 'clickable']" role="button" @click="connectSampleData">
+        <div :class="$style.groupItem" />
+        <div :class="$style.div2">샘플 데이터로 체험</div>
+      </div>
+      <div :class="$style.rectangleContainer">
+        <div :class="$style.groupInner" />
+        <div :class="$style.div3">데이터 연결 후 가능</div>
+      </div>
+    </template>
+    <div v-else :class="[$style.rectangleGroupActive, 'clickable']" role="button" @click="router.push('/ask')">
+      <div :class="$style.groupChild" />
+      <div :class="$style.div2Active">분석 시작하기</div>
+    </div>
+    <div :class="[$style.div4, 'clickable']" @click="router.push('/main')">내 데이터</div>
+    <div :class="[$style.div5, 'clickable']" @click="router.push('/ask')">분석하기</div>
+    <div :class="$style.div6">문의하기</div>
+  </div>
+  </div>
+</template>
+
+<style module>
+.viewport {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+.div {
+  width: 1920px;
+  height: 1330px;
+  position: relative;
+  background-color: #f8f9fc;
+  overflow: hidden;
+  text-align: center;
+  font-size: 20px;
+  color: #6b7280;
+  font-family: Pretendard;
+  transform-origin: top left;
+}
+.b {
+  position: absolute;
+  top: 304px;
+  left: calc(50% - 171px);
+  font-size: 40px;
+  background: linear-gradient(-86.07deg, #3482ff, #42a8ff 65.38%, #0053e3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.b2 {
+  position: absolute;
+  top: 364px;
+  left: calc(50% - 397px);
+  font-size: 26px;
+  line-height: 45px;
+}
+.child {
+  position: absolute;
+  top: 453px;
+  left: 360px;
+  box-shadow: 2px 2px 10px 1px rgba(179, 179, 179, 0.2);
+  border-radius: 20px;
+  background-color: #fff;
+  border: 2px solid #e6e7eb;
+  box-sizing: border-box;
+  width: 584px;
+  height: 431px;
+}
+.item {
+  position: absolute;
+  top: 453px;
+  left: 977px;
+  box-shadow: 2px 2px 10px 1px rgba(179, 179, 179, 0.2);
+  border-radius: 20px;
+  background-color: #fff;
+  border: 2px solid #e6e7eb;
+  box-sizing: border-box;
+  width: 584px;
+  height: 431px;
+}
+.inner {
+  position: absolute;
+  top: 1086px;
+  left: 0px;
+  background-color: #f3f3f3;
+  width: 1920px;
+  height: 244px;
+}
+.groupIcon {
+  position: absolute;
+  top: 531px;
+  left: 630px;
+  width: 45px;
+  height: 45px;
+}
+.b3 {
+  position: absolute;
+  top: 589px;
+  left: calc(50% - 389px);
+  font-size: 30px;
+  color: #0053e3;
+}
+.b4 {
+  position: absolute;
+  top: 589px;
+  left: calc(50% + 257px);
+  font-size: 30px;
+  color: #0053e3;
+}
+.csv {
+  position: absolute;
+  top: 651px;
+  left: calc(50% - 502px);
+  line-height: 35px;
+}
+.bod {
+  position: absolute;
+  top: 651px;
+  left: calc(50% + 48px);
+  line-height: 35px;
+}
+.child2 {
+  position: absolute;
+  top: 531px;
+  left: 1247px;
+  width: 45px;
+  height: 45px;
+}
+.caAaca4862A5402b585a54a82eParent {
+  position: absolute;
+  top: 82px;
+  left: 50px;
+  width: 144px;
+  height: 35px;
+  font-size: 30px;
+  color: #0053e3;
+  font-family: 'Ria Sans';
+}
+.caAaca4862A5402b585a54a82eIcon {
+  position: absolute;
+  top: 3px;
+  left: 32px;
+  width: 23px;
+  height: 29px;
+  object-fit: cover;
+}
+.b5 {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  line-height: 35px;
+}
+.b6 {
+  position: absolute;
+  top: 0px;
+  left: 81px;
+  line-height: 35px;
+}
+.b7 {
+  position: absolute;
+  top: 0px;
+  left: 51px;
+  line-height: 35px;
+}
+.ellipseDiv {
+  position: absolute;
+  top: 50px;
+  left: 1770px;
+  border-radius: 50%;
+  background-color: #d9d9d9;
+  width: 100px;
+  height: 100px;
+}
+.rectangleParent {
+  position: absolute;
+  top: 750px;
+  left: 544px;
+  width: 217px;
+  height: 41px;
+  color: #fff;
+}
+.groupChild {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  border-radius: 10px;
+  background-color: #0053e3;
+  width: 217px;
+  height: 41px;
+}
+.csv2 {
+  position: absolute;
+  top: 9px;
+  left: 39px;
+  font-weight: 600;
+}
+.rectangleGroup {
+  position: absolute;
+  top: 750px;
+  left: 1274px;
+  width: 217px;
+  height: 41px;
+  color: #0053e3;
+}
+.groupItem {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  border-radius: 10px;
+  background-color: rgba(0, 83, 227, 0.08);
+  border: 1px solid #0053e3;
+  box-sizing: border-box;
+  width: 217px;
+  height: 41px;
+}
+.div2 {
+  position: absolute;
+  top: 9px;
+  left: 34px;
+  font-weight: 600;
+  display: inline-block;
+  width: 148px;
+  height: 24px;
+}
+.rectangleContainer {
+  position: absolute;
+  top: 750px;
+  left: 1047px;
+  width: 217px;
+  height: 41px;
+}
+.groupInner {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  border-radius: 10px;
+  background-color: #e5e7eb;
+  width: 217px;
+  height: 41px;
+}
+.div3 {
+  position: absolute;
+  top: 9px;
+  left: 25px;
+  font-weight: 600;
+  display: inline-block;
+  width: 166px;
+  height: 24px;
+}
+/* 실제 파일 선택은 숨긴 input 이 담당하고, 디자인상의 버튼이 이를 대신 연다 */
+.fileInput {
+  display: none;
+}
+/* 업로드 결과 — 왼쪽 카드(360~944) 안에 가운데 정렬 */
+.uploadedName {
+  position: absolute;
+  top: 805px;
+  left: 360px;
+  width: 584px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #0053e3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.uploadError {
+  position: absolute;
+  top: 805px;
+  left: 360px;
+  width: 584px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #d92d20;
+}
+.rectangleGroupActive {
+  position: absolute;
+  top: 750px;
+  left: 1161px;
+  width: 217px;
+  height: 41px;
+  color: #fff;
+}
+.div2Active {
+  position: absolute;
+  top: 9px;
+  left: 54px;
+  font-weight: 600;
+}
+.div4 {
+  position: absolute;
+  top: 85px;
+  left: calc(50% - 676px);
+  font-size: 25px;
+  font-weight: 500;
+  color: #00559e;
+}
+.div5 {
+  position: absolute;
+  top: 85px;
+  left: calc(50% - 528px);
+  font-size: 25px;
+  font-weight: 500;
+  color: #00559e;
+}
+.div6 {
+  position: absolute;
+  top: 85px;
+  left: calc(50% - 386px);
+  font-size: 25px;
+  font-weight: 500;
+  color: #00559e;
+  text-align: left;
+}
+</style>

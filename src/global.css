@@ -6,3 +6,8 @@ body {
   line-height: normal;
   background-color: #0d1c46;
 }
+
+/* Figma 좌표 기반 요소를 클릭 가능하게 만들 때 공통으로 붙이는 클래스 */
+.clickable {
+  cursor: pointer;
+}
