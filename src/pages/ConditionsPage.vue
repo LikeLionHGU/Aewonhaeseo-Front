@@ -748,12 +748,14 @@ const scale = useDesignScale(DESIGN_WIDTH)
   text-align: center;
   flex-shrink: 0;
 }
+/* 내비게이션의 현재 섹션 표시 — 굵게 + 밑줄 */
 .div23 {
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
   font-size: 25px;
-  font-weight: 500;
+  font-weight: 700;
+  text-decoration: underline;
   color: #00559e;
   text-align: center;
   flex-shrink: 0;

@@ -175,11 +175,13 @@ const VIEW_SEGMENT = {
   font-family: Pretendard;
   transform-origin: top left;
 }
+/* 근거 상세도 분석 흐름에 속하므로 현재 섹션은 "분석하기" 다.
+   <b> 태그의 기본 굵기를 눌러 비활성으로 되돌린다. */
 .b {
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  text-decoration: underline;
+  font-weight: 500;
   color: #00559e;
   text-align: center;
 }
@@ -187,7 +189,8 @@ const VIEW_SEGMENT = {
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-weight: 500;
+  font-weight: 700;
+  text-decoration: underline;
   color: #00559e;
   text-align: center;
 }
