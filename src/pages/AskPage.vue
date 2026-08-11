@@ -145,7 +145,7 @@ const query = ref('')
       <b :class="$style.b9">사용</b>
     </div>
     <div :class="$style.child7" />
-    <div :class="[$style.div12, 'link']" @click="router.push('/main')">내 데이터</div>
+    <div :class="[$style.div12, 'link']" @click="router.push('/data')">내 데이터</div>
     <div :class="[$style.div13, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div14">문의하기</div>
   </div>

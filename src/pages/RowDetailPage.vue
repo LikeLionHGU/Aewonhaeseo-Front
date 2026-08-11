@@ -62,7 +62,7 @@ const VIEW_SEGMENT = {
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
   <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
-    <b :class="[$style.b, 'link']" @click="router.push('/main')">내 데이터</b>
+    <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <b :class="$style.mgl">2025-07-10 · 4.4mg/L의 근거</b>

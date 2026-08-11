@@ -117,7 +117,7 @@ const scale = useDesignScale(DESIGN_WIDTH)
       <b :class="$style.b11">ㅓ</b>
     </div>
     <div :class="$style.ellipseDiv" />
-    <div :class="[$style.div22, 'link']" @click="router.push('/main')">내 데이터</div>
+    <div :class="[$style.div22, 'link']" @click="router.push('/data')">내 데이터</div>
     <div :class="[$style.div23, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div24">문의하기</div>
     <div :class="[$style.div25, 'link']" @click="router.push('/ask')">←</div>

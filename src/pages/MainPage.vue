@@ -15,39 +15,7 @@ const router = useRouter()
 const hasData = ref(false)
 
 function connectSampleData() {
-  fileName.value = ''
-  uploadError.value = ''
   hasData.value = true
-}
-
-const ACCEPT = '.csv,.xls,.xlsx'
-const ALLOWED_EXT = ['csv', 'xls', 'xlsx']
-
-const fileInput = ref<HTMLInputElement | null>(null)
-const fileName = ref('')
-const uploadError = ref('')
-
-function pickFile() {
-  fileInput.value?.click()
-}
-
-function onFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-  if (!ALLOWED_EXT.includes(ext)) {
-    uploadError.value = '엑셀(.xlsx, .xls) 또는 CSV 파일만 올릴 수 있어요.'
-    fileName.value = ''
-    hasData.value = false
-  } else {
-    uploadError.value = ''
-    fileName.value = file.name
-    hasData.value = true
-  }
-  // 같은 파일을 다시 골라도 change 가 뜨도록 초기화
-  input.value = ''
 }
 </script>
 
@@ -72,13 +40,10 @@ function onFileChange(event: Event) {
       <b :class="$style.b7">ㅓ</b>
     </div>
     <div :class="$style.ellipseDiv" />
-    <input ref="fileInput" type="file" :accept="ACCEPT" :class="$style.fileInput" @change="onFileChange" />
-    <div :class="[$style.rectangleParent, 'btn']" role="button" @click="pickFile">
+    <div :class="[$style.rectangleParent, 'btn']" role="button" @click="router.push('/upload')">
       <div :class="[$style.groupChild, 'btn-fill']" />
       <div :class="$style.csv2">엑셀·CSV 업로드</div>
     </div>
-    <div v-if="fileName" :class="$style.uploadedName">{{ fileName }}</div>
-    <div v-else-if="uploadError" :class="$style.uploadError">{{ uploadError }}</div>
     <template v-if="!hasData">
       <div :class="[$style.rectangleGroup, 'btn']" role="button" @click="connectSampleData">
         <div :class="[$style.groupItem, 'btn-outline']" />
@@ -93,7 +58,7 @@ function onFileChange(event: Event) {
       <div :class="[$style.groupChild, 'btn-fill']" />
       <div :class="$style.div2Active">분석 시작하기</div>
     </div>
-    <div :class="[$style.div4, 'link']" @click="router.push('/main')">내 데이터</div>
+    <div :class="[$style.div4, 'link']" @click="router.push('/data')">내 데이터</div>
     <div :class="[$style.div5, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div6">문의하기</div>
   </div>
@@ -326,34 +291,6 @@ function onFileChange(event: Event) {
   display: inline-block;
   width: 166px;
   height: 24px;
-}
-/* 실제 파일 선택은 숨긴 input 이 담당하고, 디자인상의 버튼이 이를 대신 연다 */
-.fileInput {
-  display: none;
-}
-/* 업로드 결과 — 왼쪽 카드(360~944) 안에 가운데 정렬 */
-.uploadedName {
-  position: absolute;
-  top: 805px;
-  left: 360px;
-  width: 584px;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 600;
-  color: #0053e3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.uploadError {
-  position: absolute;
-  top: 805px;
-  left: 360px;
-  width: 584px;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 600;
-  color: #d92d20;
 }
 .rectangleGroupActive {
   position: absolute;
