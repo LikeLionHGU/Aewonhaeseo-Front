@@ -143,11 +143,11 @@ const overHighlight = computed(() => ({
 <template>
   <div :class="$style.viewport" :style="{ height: `${designHeight * scale}px` }">
   <div :class="$style.div" :style="{ transform: `scale(${scale})`, height: `${designHeight}px` }">
-    <b :class="[$style.b, 'clickable']" @click="router.push('/main')">내 데이터</b>
-    <div :class="[$style.div2, 'clickable']" @click="router.push('/ask')">분석하기</div>
+    <b :class="[$style.b, 'link']" @click="router.push('/main')">내 데이터</b>
+    <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <b :class="$style.bod">“작년 인천 지점 BOD 월별 추이 보여줘"</b>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'clickable']" @click="router.push('/')">
+    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
       <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
       <b :class="$style.b2">물</b>
       <b :class="$style.b3">볼래</b>
@@ -199,11 +199,11 @@ const overHighlight = computed(() => ({
       </div>
     </div>
     <b :class="$style.b5">3/12</b>
-    <b :class="[$style.b6, activeTab === 'graph' ? $style.tabActive : $style.tabIdle, 'clickable']"
+    <b :class="[$style.b6, activeTab === 'graph' ? $style.tabActive : $style.tabIdle, 'link']"
        @click="activeTab = 'graph'">추이 그래프</b>
-    <b :class="[$style.b7, activeTab === 'table' ? $style.tabActive : $style.tabIdle, 'clickable']"
+    <b :class="[$style.b7, activeTab === 'table' ? $style.tabActive : $style.tabIdle, 'link']"
        @click="activeTab = 'table'">표 결과</b>
-    <b :class="[$style.b8, activeTab === 'exceed' ? $style.tabActive : $style.tabIdle, 'clickable']"
+    <b :class="[$style.b8, activeTab === 'exceed' ? $style.tabActive : $style.tabIdle, 'link']"
        @click="activeTab = 'exceed'">기준 초과 분석</b>
     <div :class="$style.child2" />
     <div :class="$style.child3"
@@ -218,17 +218,17 @@ const overHighlight = computed(() => ({
       width: `${UNIT_SEGMENT[unit].width}px`,
       borderRadius: UNIT_SEGMENT[unit].radius,
     }" />
-    <b :class="[$style.b11, 'clickable']" @click="unit = '월'">월</b>
-    <b :class="[$style.b12, 'clickable']" @click="unit = '분기'">분기</b>
-    <b :class="[$style.b13, 'clickable']" @click="unit = '연'">연</b>
+    <b :class="[$style.b11, 'link']" @click="unit = '월'">월</b>
+    <b :class="[$style.b12, 'link']" @click="unit = '분기'">분기</b>
+    <b :class="[$style.b13, 'link']" @click="unit = '연'">연</b>
     <!-- 비교 컨트롤: 그래프 탭은 3지 선택, 표 탭은 단일 드롭다운 -->
     <template v-if="activeTab === 'graph'">
       <div :class="[$style.child5, compare === '비교 없음' && $style.chipOn]" />
       <div :class="[$style.child6, compare === '+전년 동기' && $style.chipOn]" />
       <div :class="[$style.child7, compare === '+다른 지점' && $style.chipOn]" />
-      <b :class="[$style.b14, 'clickable']" @click="compare = '비교 없음'">비교 없음</b>
-      <b :class="[$style.b15, 'clickable']" @click="compare = '+전년 동기'">+전년 동기</b>
-      <b :class="[$style.b16, 'clickable']" @click="compare = '+다른 지점'">+다른 지점</b>
+      <b :class="[$style.b14, 'link']" @click="compare = '비교 없음'">비교 없음</b>
+      <b :class="[$style.b15, 'link']" @click="compare = '+전년 동기'">+전년 동기</b>
+      <b :class="[$style.b16, 'link']" @click="compare = '+다른 지점'">+다른 지점</b>
       <img :class="$style.polygonIcon" :src="caretDownIcon" alt="" />
     </template>
     <template v-else-if="activeTab === 'table'">
@@ -329,12 +329,12 @@ const overHighlight = computed(() => ({
     </template>
 
     <div :class="$style.child40" :style="{ top: `${2132 + tabOffset}px` }" />
-    <div :class="[$style.rectangleParent3, 'clickable']" role="button"
+    <div :class="[$style.rectangleParent3, 'btn']" role="button"
          :style="{ top: `${2201 + tabOffset}px` }" @click="router.push('/evidence')">
-      <div :class="$style.groupChild3" />
+      <div :class="[$style.groupChild3, 'btn-fill']" />
       <b :class="$style.b24">근거 상세 보기 →</b>
     </div>
-    <div :class="[$style.div26, 'clickable']" @click="router.push('/conditions')">←</div>
+    <div :class="[$style.div26, 'link']" @click="router.push('/conditions')">←</div>
   </div>
   </div>
 </template>

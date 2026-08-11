@@ -47,44 +47,44 @@ const scale = useDesignScale(DESIGN_WIDTH)
       <div :class="$style.groupChild" />
       <div :class="$style.div8">즉청 지점: 한강 수계</div>
     </div>
-    <div :class="[$style.rectangleGroup, 'clickable']" role="button" @click="period = '최근 1개월'">
-      <div :class="[$style.groupItem, period === '최근 1개월' && $style.chipOn]" />
+    <div :class="[$style.rectangleGroup, 'btn']" role="button" @click="period = '최근 1개월'">
+      <div :class="[$style.groupItem, period === '최근 1개월' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div9">최근 1개월</div>
     </div>
-    <div :class="[$style.rectangleContainer, 'clickable']" role="button" @click="unit = '월별'">
-      <div :class="[$style.groupInner, unit === '월별' && $style.chipOn]" />
+    <div :class="[$style.rectangleContainer, 'btn']" role="button" @click="unit = '월별'">
+      <div :class="[$style.groupInner, unit === '월별' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div10">월별</div>
     </div>
-    <div :class="[$style.groupDiv, 'clickable']" role="button" @click="compare = '전년 동기 비교'">
-      <div :class="[$style.groupChild2, compare === '전년 동기 비교' && $style.chipOn]" />
+    <div :class="[$style.groupDiv, 'btn']" role="button" @click="compare = '전년 동기 비교'">
+      <div :class="[$style.groupChild2, compare === '전년 동기 비교' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div11">전년 동기 비교</div>
     </div>
-    <div :class="[$style.rectangleParent2, 'clickable']" role="button" @click="compare = '다중 지점 비교'">
-      <div :class="[$style.groupChild2, compare === '다중 지점 비교' && $style.chipOn]" />
+    <div :class="[$style.rectangleParent2, 'btn']" role="button" @click="compare = '다중 지점 비교'">
+      <div :class="[$style.groupChild2, compare === '다중 지점 비교' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div11">다중 지점 비교</div>
     </div>
-    <div :class="[$style.rectangleParent3, 'clickable']" role="button" @click="compare = '비교 없음'">
-      <div :class="[$style.groupChild4, compare === '비교 없음' && $style.chipOn]" />
+    <div :class="[$style.rectangleParent3, 'btn']" role="button" @click="compare = '비교 없음'">
+      <div :class="[$style.groupChild4, compare === '비교 없음' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div13">비교 없음</div>
     </div>
-    <div :class="[$style.rectangleParent4, 'clickable']" role="button" @click="unit = '연별'">
-      <div :class="[$style.groupInner, unit === '연별' && $style.chipOn]" />
+    <div :class="[$style.rectangleParent4, 'btn']" role="button" @click="unit = '연별'">
+      <div :class="[$style.groupInner, unit === '연별' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div10">연별</div>
     </div>
-    <div :class="[$style.rectangleParent5, 'clickable']" role="button" @click="unit = '분기별'">
-      <div :class="[$style.groupInner, unit === '분기별' && $style.chipOn]" />
+    <div :class="[$style.rectangleParent5, 'btn']" role="button" @click="unit = '분기별'">
+      <div :class="[$style.groupInner, unit === '분기별' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div15">분기별</div>
     </div>
-    <div :class="[$style.rectangleParent6, 'clickable']" role="button" @click="period = '최근 3개월'">
-      <div :class="[$style.groupItem, period === '최근 3개월' && $style.chipOn]" />
+    <div :class="[$style.rectangleParent6, 'btn']" role="button" @click="period = '최근 3개월'">
+      <div :class="[$style.groupItem, period === '최근 3개월' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div9">최근 3개월</div>
     </div>
-    <div :class="[$style.rectangleParent7, 'clickable']" role="button" @click="period = '최근 1년'">
-      <div :class="[$style.groupItem, period === '최근 1년' && $style.chipOn]" />
+    <div :class="[$style.rectangleParent7, 'btn']" role="button" @click="period = '최근 1년'">
+      <div :class="[$style.groupItem, period === '최근 1년' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div11">최근 1년</div>
     </div>
-    <div :class="[$style.rectangleParent8, 'clickable']" role="button" @click="period = '최근 3년'">
-      <div :class="[$style.groupItem, period === '최근 3년' && $style.chipOn]" />
+    <div :class="[$style.rectangleParent8, 'btn']" role="button" @click="period = '최근 3년'">
+      <div :class="[$style.groupItem, period === '최근 3년' && $style.chipOn, 'btn-fill']" />
       <div :class="$style.div11">최근 3년</div>
     </div>
     <div :class="$style.rectangleParent9">
@@ -105,22 +105,22 @@ const scale = useDesignScale(DESIGN_WIDTH)
       <div :class="$style.select">Select ..</div>
       <img :class="$style.vectorIcon" :src="dropdownIcon" alt="" />
     </div>
-    <div :class="[$style.rectangleParent13, 'clickable']" role="button" @click="router.push('/results')">
-      <div :class="$style.groupChild14" />
+    <div :class="[$style.rectangleParent13, 'btn']" role="button" @click="router.push('/results')">
+      <div :class="[$style.groupChild14, 'btn-fill']" />
       <b :class="$style.b8">분석 시작하기</b>
     </div>
     <div :class="$style.child4" />
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'clickable']" @click="router.push('/')">
+    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
       <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
       <b :class="$style.b9">물</b>
       <b :class="$style.b10">볼래</b>
       <b :class="$style.b11">ㅓ</b>
     </div>
     <div :class="$style.ellipseDiv" />
-    <div :class="[$style.div22, 'clickable']" @click="router.push('/main')">내 데이터</div>
-    <div :class="[$style.div23, 'clickable']" @click="router.push('/ask')">분석하기</div>
+    <div :class="[$style.div22, 'link']" @click="router.push('/main')">내 데이터</div>
+    <div :class="[$style.div23, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div24">문의하기</div>
-    <div :class="[$style.div25, 'clickable']" @click="router.push('/ask')">←</div>
+    <div :class="[$style.div25, 'link']" @click="router.push('/ask')">←</div>
   </div>
   </div>
 </template>

@@ -65,7 +65,7 @@ function onFileChange(event: Event) {
     <div :class="$style.csv">엑셀·CSV 파일을 업로드하면 <br/>데이터를 자동으로 정리하고 용어를 표준화합니다.</div>
     <div :class="$style.bod">“작년 인천 지점 BOD 월별 추이 보여줘"<br/>궁금한 내용을 입력하면, 근거와 함께 분석 결과를 확인할 수 있어요.</div>
     <img :class="$style.child2" :src="analyzeIcon" alt="" />
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'clickable']" @click="router.push('/')">
+    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
       <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
       <b :class="$style.b5">물</b>
       <b :class="$style.b6">볼래</b>
@@ -73,15 +73,15 @@ function onFileChange(event: Event) {
     </div>
     <div :class="$style.ellipseDiv" />
     <input ref="fileInput" type="file" :accept="ACCEPT" :class="$style.fileInput" @change="onFileChange" />
-    <div :class="[$style.rectangleParent, 'clickable']" role="button" @click="pickFile">
-      <div :class="$style.groupChild" />
+    <div :class="[$style.rectangleParent, 'btn']" role="button" @click="pickFile">
+      <div :class="[$style.groupChild, 'btn-fill']" />
       <div :class="$style.csv2">엑셀·CSV 업로드</div>
     </div>
     <div v-if="fileName" :class="$style.uploadedName">{{ fileName }}</div>
     <div v-else-if="uploadError" :class="$style.uploadError">{{ uploadError }}</div>
     <template v-if="!hasData">
-      <div :class="[$style.rectangleGroup, 'clickable']" role="button" @click="connectSampleData">
-        <div :class="$style.groupItem" />
+      <div :class="[$style.rectangleGroup, 'btn']" role="button" @click="connectSampleData">
+        <div :class="[$style.groupItem, 'btn-outline']" />
         <div :class="$style.div2">샘플 데이터로 체험</div>
       </div>
       <div :class="$style.rectangleContainer">
@@ -89,12 +89,12 @@ function onFileChange(event: Event) {
         <div :class="$style.div3">데이터 연결 후 가능</div>
       </div>
     </template>
-    <div v-else :class="[$style.rectangleGroupActive, 'clickable']" role="button" @click="router.push('/ask')">
-      <div :class="$style.groupChild" />
+    <div v-else :class="[$style.rectangleGroupActive, 'btn']" role="button" @click="router.push('/ask')">
+      <div :class="[$style.groupChild, 'btn-fill']" />
       <div :class="$style.div2Active">분석 시작하기</div>
     </div>
-    <div :class="[$style.div4, 'clickable']" @click="router.push('/main')">내 데이터</div>
-    <div :class="[$style.div5, 'clickable']" @click="router.push('/ask')">분석하기</div>
+    <div :class="[$style.div4, 'link']" @click="router.push('/main')">내 데이터</div>
+    <div :class="[$style.div5, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div6">문의하기</div>
   </div>
   </div>

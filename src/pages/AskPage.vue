@@ -31,21 +31,21 @@ const query = ref('')
       <div :class="[$style.bod1, query && $style.bod1Filled]">{{ query || PLACEHOLDER }}</div>
     </div>
     <div :class="$style.div3">이렇게 질문해 보세요</div>
-    <div :class="[$style.rectangleGroup, 'clickable']" role="button" @click="router.push('/conditions')">
-      <div :class="$style.groupItem" />
+    <div :class="[$style.rectangleGroup, 'btn']" role="button" @click="router.push('/conditions')">
+      <div :class="[$style.groupItem, 'btn-fill']" />
       <b :class="$style.b4">질문하기 →</b>
     </div>
-    <div :class="[$style.rectangleContainer, 'clickable']" role="button"
+    <div :class="[$style.rectangleContainer, 'btn']" role="button"
          @click="query = '한강 COD 분기별 기준 초과 횟수'">
-      <div :class="$style.groupInner" />
+      <div :class="[$style.groupInner, 'btn-fill']" />
       <div :class="$style.cod">한강 COD 분기별 기준 초과 횟수</div>
     </div>
-    <div :class="[$style.groupDiv, 'clickable']" role="button"
+    <div :class="[$style.groupDiv, 'btn']" role="button"
          @click="query = '금강 DO 전년 동기 대비 비교'">
-      <div :class="$style.rectangleDiv" />
+      <div :class="[$style.rectangleDiv, 'btn-fill']" />
       <div :class="$style.do">금강 DO 전년 동기 대비 비교</div>
     </div>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'clickable']" @click="router.push('/')">
+    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
       <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
       <b :class="$style.b5">물</b>
       <b :class="$style.b6">볼래</b>
@@ -106,20 +106,20 @@ const query = ref('')
     <div :class="$style.div6">2024.06.10 14:32 실행</div>
     <div :class="$style.div7">2024.06.10 14:32 실행</div>
     <div :class="$style.div8">2024.06.10 14:32 실행</div>
-    <div :class="[$style.rectangleParent10, 'clickable']" role="button" @click="router.push('/results')">
-      <div :class="$style.groupChild10" />
+    <div :class="[$style.rectangleParent10, 'btn']" role="button" @click="router.push('/results')">
+      <div :class="[$style.groupChild10, 'btn-fill']" />
       <b :class="$style.b13">결과 보기</b>
     </div>
-    <div :class="[$style.rectangleParent11, 'clickable']" role="button" @click="router.push('/results')">
-      <div :class="$style.groupChild10" />
+    <div :class="[$style.rectangleParent11, 'btn']" role="button" @click="router.push('/results')">
+      <div :class="[$style.groupChild10, 'btn-fill']" />
       <b :class="$style.b13">결과 보기</b>
     </div>
-    <div :class="[$style.rectangleParent12, 'clickable']" role="button" @click="router.push('/results')">
-      <div :class="$style.groupChild10" />
+    <div :class="[$style.rectangleParent12, 'btn']" role="button" @click="router.push('/results')">
+      <div :class="[$style.groupChild10, 'btn-fill']" />
       <b :class="$style.b13">결과 보기</b>
     </div>
-    <div :class="[$style.rectangleParent13, 'clickable']" role="button" @click="router.push('/results')">
-      <div :class="$style.groupChild10" />
+    <div :class="[$style.rectangleParent13, 'btn']" role="button" @click="router.push('/results')">
+      <div :class="[$style.groupChild10, 'btn-fill']" />
       <b :class="$style.b13">결과 보기</b>
     </div>
     <div :class="$style.child5" />
@@ -132,21 +132,21 @@ const query = ref('')
     <div :class="$style.div9">지점/항목/기간을 입력하면 월별 추세 생성</div>
     <div :class="$style.div10">법정/내부 기준 적용 후 초과 횟수 산출</div>
     <div :class="$style.div11">동일 지점/항목의 기간 전후 차이 비교</div>
-    <div :class="[$style.rectangleParent14, 'clickable']" role="button" @click="router.push('/conditions')">
-      <div :class="$style.groupChild14" />
+    <div :class="[$style.rectangleParent14, 'btn']" role="button" @click="router.push('/conditions')">
+      <div :class="[$style.groupChild14, 'btn-fill']" />
       <b :class="$style.b9">사용</b>
     </div>
-    <div :class="[$style.rectangleParent15, 'clickable']" role="button" @click="router.push('/conditions')">
-      <div :class="$style.groupChild14" />
+    <div :class="[$style.rectangleParent15, 'btn']" role="button" @click="router.push('/conditions')">
+      <div :class="[$style.groupChild14, 'btn-fill']" />
       <b :class="$style.b9">사용</b>
     </div>
-    <div :class="[$style.rectangleParent16, 'clickable']" role="button" @click="router.push('/conditions')">
-      <div :class="$style.groupChild14" />
+    <div :class="[$style.rectangleParent16, 'btn']" role="button" @click="router.push('/conditions')">
+      <div :class="[$style.groupChild14, 'btn-fill']" />
       <b :class="$style.b9">사용</b>
     </div>
     <div :class="$style.child7" />
-    <div :class="[$style.div12, 'clickable']" @click="router.push('/main')">내 데이터</div>
-    <div :class="[$style.div13, 'clickable']" @click="router.push('/ask')">분석하기</div>
+    <div :class="[$style.div12, 'link']" @click="router.push('/main')">내 데이터</div>
+    <div :class="[$style.div13, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div14">문의하기</div>
   </div>
   </div>

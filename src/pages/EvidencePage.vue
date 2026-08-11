@@ -67,11 +67,11 @@ const rawHighlight = {
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
   <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
-    <b :class="[$style.b, 'clickable']" @click="router.push('/main')">내 데이터</b>
-    <div :class="[$style.div2, 'clickable']" @click="router.push('/ask')">분석하기</div>
+    <b :class="[$style.b, 'link']" @click="router.push('/main')">내 데이터</b>
+    <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <b :class="$style.b2">이 결과가 나온 근거</b>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'clickable']" @click="router.push('/')">
+    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
       <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
       <b :class="$style.b3">물</b>
       <b :class="$style.b4">볼래</b>
@@ -131,11 +131,11 @@ const rawHighlight = {
       width: `${VIEW_SEGMENT[viewMode].width}px`,
       borderRadius: VIEW_SEGMENT[viewMode].radius,
     }" />
-    <b :class="[$style.b37, viewMode === '쉬운 말' ? $style.viewOn : $style.viewOff, 'clickable']"
+    <b :class="[$style.b37, viewMode === '쉬운 말' ? $style.viewOn : $style.viewOff, 'link']"
        @click="viewMode = '쉬운 말'">쉬운 말</b>
-    <b :class="[$style.sql4, viewMode === 'SQL' ? $style.viewOn : $style.viewOff, 'clickable']"
+    <b :class="[$style.sql4, viewMode === 'SQL' ? $style.viewOn : $style.viewOff, 'link']"
        @click="viewMode = 'SQL'">SQL</b>
-    <b :class="[$style.b38, viewMode === '둘 다' ? $style.viewOn : $style.viewOff, 'clickable']"
+    <b :class="[$style.b38, viewMode === '둘 다' ? $style.viewOn : $style.viewOff, 'link']"
        @click="viewMode = '둘 다'">둘 다</b>
     <div :class="$style.child22" />
     <b :class="$style.b39">쉬운 말로</b>
@@ -231,12 +231,12 @@ const rawHighlight = {
       <div v-else :class="$style.rawCell"
            :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.vs}px` }">{{ row.vs }}</div>
       <!-- 초과 행은 행 전체를 눌러 상세로 들어간다 -->
-      <div v-if="row.over" :class="[$style.rawRowHit, 'clickable']" role="button"
+      <div v-if="row.over" :class="[$style.rawRowHit, 'row-hit']" role="button"
            :style="{ top: `${rawTop(i) - 34}px` }" @click="router.push('/row-detail')" />
     </template>
 
     <div :class="$style.child18" />
-    <div :class="[$style.div37, 'clickable']" @click="router.push('/results')">←</div>
+    <div :class="[$style.div37, 'link']" @click="router.push('/results')">←</div>
   </div>
   </div>
 </template>

@@ -62,11 +62,11 @@ const VIEW_SEGMENT = {
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
   <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
-    <b :class="[$style.b, 'clickable']" @click="router.push('/main')">내 데이터</b>
-    <div :class="[$style.div2, 'clickable']" @click="router.push('/ask')">분석하기</div>
+    <b :class="[$style.b, 'link']" @click="router.push('/main')">내 데이터</b>
+    <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <b :class="$style.mgl">2025-07-10 · 4.4mg/L의 근거</b>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'clickable']" @click="router.push('/')">
+    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
       <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
       <b :class="$style.b2">물</b>
       <b :class="$style.b3">볼래</b>
@@ -124,11 +124,11 @@ const VIEW_SEGMENT = {
       width: `${VIEW_SEGMENT[viewMode].width}px`,
       borderRadius: VIEW_SEGMENT[viewMode].radius,
     }" />
-    <b :class="[$style.b48, viewMode === '쉬운 말' ? $style.viewOn : $style.viewOff, 'clickable']"
+    <b :class="[$style.b48, viewMode === '쉬운 말' ? $style.viewOn : $style.viewOff, 'link']"
        @click="viewMode = '쉬운 말'">쉬운 말</b>
-    <b :class="[$style.sql2, viewMode === 'SQL' ? $style.viewOn : $style.viewOff, 'clickable']"
+    <b :class="[$style.sql2, viewMode === 'SQL' ? $style.viewOn : $style.viewOff, 'link']"
        @click="viewMode = 'SQL'">SQL</b>
-    <b :class="[$style.b49, viewMode === '둘 다' ? $style.viewOn : $style.viewOff, 'clickable']"
+    <b :class="[$style.b49, viewMode === '둘 다' ? $style.viewOn : $style.viewOff, 'link']"
        @click="viewMode = '둘 다'">둘 다</b>
     <div :class="$style.child12" />
     <b :class="$style.b50">쉬운 말로</b>
@@ -152,7 +152,7 @@ const VIEW_SEGMENT = {
     </template>
 
     <div :class="$style.child8" />
-    <div :class="[$style.div4, 'clickable']" @click="router.push('/evidence')">←</div>
+    <div :class="[$style.div4, 'link']" @click="router.push('/evidence')">←</div>
   </div>
   </div>
 </template>

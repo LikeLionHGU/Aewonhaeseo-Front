@@ -7,7 +7,68 @@ body {
   background-color: #0d1c46;
 }
 
-/* Figma 좌표 기반 요소를 클릭 가능하게 만들 때 공통으로 붙이는 클래스 */
-.clickable {
+/* ── 버튼 상호작용 ────────────────────────────────────────────────────
+   버튼은 대부분 [컨테이너 > 배경 사각형 + 라벨] 구조다. 컨테이너에 .btn 을
+   붙이고 배경 사각형에 아래 둘 중 하나를 붙인다.
+
+     .btn-fill     배경색이 채워진 면. 밝기만 낮추므로 선택 상태(chipOn 등)로
+                   배경색이 바뀌어도 호버가 그 색을 덮어쓰지 않는다.
+     .btn-outline  배경이 투명하고 테두리만 있는 면. 밝기를 낮춰도 보이는 게
+                   없으니 옅은 파란 배경을 깔아준다.
+
+   사각형과 라벨이 형제로 나란히 놓인 경우엔 사각형이 .btn 을 직접 달고,
+   라벨에 .btn-label 을 붙여 포인터가 사각형까지 통과하게 한다. */
+.btn {
   cursor: pointer;
+}
+/* background-color 는 페인트 전용 속성이라 트랜지션을 걸어도 안전하다.
+   filter / opacity 는 트랜지션을 걸면 합성 레이어로 승격되는데, 이 디자인은
+   페이지 전체가 소수점 배율(transform: scale)로 축소돼 있어서 레이어가 정수
+   디바이스 픽셀에 스냅되고 서브픽셀 안티에일리어싱이 꺼진다. 그러면 호버할
+   때마다 글자와 사각형이 1px 미만으로 튀어 흔들려 보인다. 그래서 값만 바꾸고
+   트랜지션은 걸지 않는다. */
+.btn-outline {
+  transition: background-color 0.15s ease;
+}
+.btn:hover .btn-fill,
+.btn-fill.btn:hover {
+  filter: brightness(0.9);
+}
+.btn:active .btn-fill,
+.btn-fill.btn:active {
+  filter: brightness(0.8);
+}
+.btn:hover .btn-outline,
+.btn-outline.btn:hover {
+  background-color: rgba(0, 83, 227, 0.14);
+}
+.btn:active .btn-outline,
+.btn-outline.btn:active {
+  background-color: rgba(0, 83, 227, 0.24);
+}
+.btn-label {
+  pointer-events: none;
+}
+
+/* 텍스트 자체가 버튼인 경우 — 내비게이션, 탭, 세그먼트, 화살표, 텍스트 링크 */
+.link {
+  cursor: pointer;
+}
+.link:hover {
+  opacity: 0.6;
+}
+.link:active {
+  opacity: 0.4;
+}
+
+/* 표의 행 전체가 클릭 영역인 경우 — 투명 오버레이라 배경으로만 표시한다 */
+.row-hit {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.row-hit:hover {
+  background-color: rgba(0, 83, 227, 0.06);
+}
+.row-hit:active {
+  background-color: rgba(0, 83, 227, 0.12);
 }
