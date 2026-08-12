@@ -7,7 +7,7 @@ import { useDesignScale } from '../composables/useDesignScale'
 
 const DESIGN_WIDTH = 1920
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
 const ACCEPT = '.csv,.xls,.xlsx'
@@ -46,8 +46,12 @@ const EMPTY_BOX_HEIGHT = 151
 
 // 마지막 카드 아래 91px 지점에 "용어 확인하기", 그 아래 229px 지점부터 푸터.
 const confirmTop = computed(() => cardTop(files.value.length - 1) + CARD_HEIGHT + 91)
+// "용어 확인하기" 버튼 높이 — .confirmButton 과 같이 유지해야 한다
+const CONFIRM_BUTTON_HEIGHT = 56
 const footerTop = computed(() =>
-  files.value.length ? confirmTop.value + 80 + 229 : EMPTY_BOX_TOP + EMPTY_BOX_HEIGHT + 170,
+  files.value.length
+    ? confirmTop.value + CONFIRM_BUTTON_HEIGHT + 229
+    : EMPTY_BOX_TOP + EMPTY_BOX_HEIGHT + 170,
 )
 const designHeight = computed(() => footerTop.value + 244)
 
@@ -97,7 +101,7 @@ function onDrop(event: DragEvent) {
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${designHeight * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})`, height: `${designHeight}px` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})`, height: `${designHeight}px` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
@@ -107,7 +111,7 @@ function onDrop(event: DragEvent) {
       <b :class="$style.b4">볼래</b>
       <b :class="$style.b5">ㅓ</b>
     </div>
-    <div :class="$style.child" />
+    <div :class="$style.profile" />
     <b :class="$style.csv2">엑셀 · CSV 파일 업로드</b>
     <b :class="$style.csv">기관에서 사용하는 엑셀·CSV 파일을 그대로 올려보세요.<br/>별도의 서식 정리 없이 바로 업로드할 수 있어요.</b>
 
@@ -136,9 +140,11 @@ function onDrop(event: DragEvent) {
       <div :class="[$style.groupChild, 'btn-fill']" />
       <b :class="$style.b13">파일 선택</b>
     </div>
-    <div :class="$style.xlsxXls">지원 형식: .xlsx · .xls · .csv</div>
-    <div :class="$style.div6">|</div>
-    <div :class="$style.mb">파일당 최대 50MB</div>
+    <div :class="$style.formatNote">
+      <span>지원 형식: .xlsx · .xls · .csv</span>
+      <span>|</span>
+      <span>파일당 최대 50MB</span>
+    </div>
 
     <!-- 올린 파일 -->
     <b :class="$style.b2">올린 파일</b>
@@ -185,9 +191,8 @@ function onDrop(event: DragEvent) {
   width: 1920px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: left;
-  font-size: 26px;
+  font-size: var(--font-body-03);
   color: #00559e;
   font-family: Pretendard;
   transform-origin: top left;
@@ -196,7 +201,7 @@ function onDrop(event: DragEvent) {
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   text-decoration: underline;
   text-align: center;
 }
@@ -204,7 +209,7 @@ function onDrop(event: DragEvent) {
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   text-align: center;
 }
@@ -212,7 +217,7 @@ function onDrop(event: DragEvent) {
   position: absolute;
   top: 85px;
   left: calc(50% - 386px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
 }
 .caAaca4862A5402b585a54a82eParent {
@@ -222,7 +227,7 @@ function onDrop(event: DragEvent) {
   width: 144px;
   height: 35px;
   text-align: center;
-  font-size: 30px;
+  font-size: var(--font-body-01);
   color: #0053e3;
   font-family: 'Ria Sans';
 }
@@ -252,20 +257,21 @@ function onDrop(event: DragEvent) {
   left: 51px;
   line-height: 35px;
 }
-.child {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .csv2 {
   position: absolute;
   top: 299px;
   left: calc(50% - 866px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #0053e3;
 }
 .csv {
@@ -279,7 +285,7 @@ function onDrop(event: DragEvent) {
   position: absolute;
   top: 228px;
   left: 50px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   font-weight: 600;
   text-align: center;
 }
@@ -306,12 +312,14 @@ function onDrop(event: DragEvent) {
 }
 .stepNo {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 571px;
   line-height: 45px;
   color: #fff;
 }
 .stepLabel {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 571px;
   line-height: 45px;
 }
@@ -346,17 +354,23 @@ function onDrop(event: DragEvent) {
   height: 77px;
   pointer-events: none;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면
+   오른쪽으로 밀렸다. 실제 중앙 정렬로 바꿔 크기와 무관하게 고정한다. */
 .b12 {
   position: absolute;
   top: 906px;
-  left: calc(50% - 245px);
-  font-size: 40px;
+  left: 0px;
+  width: 100%;
+  text-align: center;
+  font-size: var(--font-body-01);
+  line-height: 48px;
   pointer-events: none;
 }
 .div4 {
   position: absolute;
   top: 1000px;
-  left: calc(50% - 225px);
+  left: 0px;
+  width: 100%;
   line-height: 45px;
   font-weight: 500;
   color: #6b7280;
@@ -368,9 +382,9 @@ function onDrop(event: DragEvent) {
   top: 1139px;
   left: calc(50% - 160px);
   width: 320px;
-  height: 75px;
+  height: 56px;
   text-align: center;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   color: #fff;
 }
 .groupChild {
@@ -380,53 +394,41 @@ function onDrop(event: DragEvent) {
   border-radius: 10px;
   background-color: #00559e;
   width: 320px;
-  height: 75px;
+  height: 56px;
 }
 .b13 {
   position: absolute;
-  top: 15px;
+  top: 0px;
   left: 27px;
-  line-height: 45px;
+  line-height: 56px;
   display: inline-block;
   width: 266px;
   height: 45px;
 }
-.xlsxXls {
-  position: absolute;
-  top: 1274px;
-  left: calc(50% - 280px);
-  line-height: 45px;
-  font-weight: 600;
-  color: #6b7280;
-  text-align: center;
-  pointer-events: none;
-}
-.div6 {
-  position: absolute;
-  top: 1274px;
-  left: calc(50% + 44px);
-  line-height: 45px;
-  font-weight: 600;
-  color: #6b7280;
-  text-align: center;
-  pointer-events: none;
-}
-.mb {
-  position: absolute;
-  top: 1274px;
-  left: calc(50% + 83px);
-  line-height: 45px;
-  font-weight: 600;
-  color: #6b7280;
-  text-align: center;
-  pointer-events: none;
-}
 /* ── 올린 파일 ──────────────────────────────── */
+/* 지원 형식 안내 — 원본은 "지원 형식…" · "|" · "파일당 최대…" 세 조각을 각각
+   하드코딩된 오프셋으로 놓아서, 글자 크기가 바뀌면 간격과 중앙이 동시에
+   틀어졌다. 한 줄로 묶어 flex 로 가운데 정렬한다. */
+.formatNote {
+  position: absolute;
+  top: 1274px;
+  left: 0px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  line-height: 45px;
+  font-weight: 600;
+  color: #6b7280;
+  pointer-events: none;
+}
+
 .b2 {
   position: absolute;
   top: 1498px;
   left: calc(50% - 866px);
-  font-size: 30px;
+  font-size: var(--font-body-02);
+  line-height: 36px;
   color: #455772;
 }
 .emptyBox {
@@ -443,8 +445,9 @@ function onDrop(event: DragEvent) {
 .div5 {
   position: absolute;
   top: 1669px;
-  left: calc(50% - 387px);
-  font-size: 30px;
+  left: 0px;
+  width: 100%;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
   color: #6b7280;
@@ -467,7 +470,7 @@ function onDrop(event: DragEvent) {
   position: absolute;
   top: 47px;
   left: 44px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #1f2937;
 }
@@ -475,7 +478,7 @@ function onDrop(event: DragEvent) {
   position: absolute;
   top: 92px;
   left: 44px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   color: #9ca3af;
 }
@@ -521,7 +524,8 @@ function onDrop(event: DragEvent) {
   position: absolute;
   top: 93px;
   left: 1632px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
+  line-height: 36px;
   font-weight: 600;
   color: #6b7280;
 }
@@ -529,8 +533,8 @@ function onDrop(event: DragEvent) {
   position: absolute;
   left: 1520px;
   width: 350px;
-  height: 80px;
-  font-size: 30px;
+  height: 56px;
+  font-size: var(--font-body-03);
   color: #fff;
 }
 .confirmButtonBg {
@@ -540,30 +544,31 @@ function onDrop(event: DragEvent) {
   border-radius: 10px;
   background-color: #0053e3;
   width: 350px;
-  height: 80px;
+  height: 56px;
 }
 .confirmButtonLabel {
   position: absolute;
-  top: 22px;
+  top: 0px;
   left: 64px;
   display: inline-block;
   width: 222px;
-  height: 36px;
+  height: 56px;
+  line-height: 56px;
   text-align: center;
 }
 .uploadError {
   position: absolute;
   left: 50px;
-  font-size: 24px;
+  font-size: var(--font-body-03);
   line-height: 44px;
   font-weight: 600;
   color: #d92d20;
 }
 .item {
   position: absolute;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 </style>

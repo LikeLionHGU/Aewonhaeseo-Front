@@ -8,7 +8,7 @@ import { useDesignScale } from '../composables/useDesignScale'
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 2341
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
 // 진행 단계 — 1단계는 완료(체크), 2단계가 현재, 3단계는 대기.
@@ -18,12 +18,7 @@ const stepConnectors = [
 ]
 
 // 상태 필터
-const filters = [
-  { label: '전체 42', left: 50, width: 170, textLeft: 87 },
-  { label: '사람 확인 3', left: 234, width: 217, textLeft: 274 },
-  { label: '자동 매핑 37', left: 465, width: 217, textLeft: 497 },
-  { label: '확인 필요 2', left: 696, width: 217, textLeft: 736 },
-]
+const filters = ['전체 42', '사람 확인 3', '자동 매핑 37', '확인 필요 2']
 const activeFilter = ref('전체 42')
 
 // 컬럼 매핑 표 — 행 간격이 원본에서 불규칙해 좌표를 그대로 쓴다.
@@ -52,7 +47,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
@@ -62,7 +57,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
       <b :class="$style.b3">볼래</b>
       <b :class="$style.b4">ㅓ</b>
     </div>
-    <div :class="$style.child" />
+    <div :class="$style.profile" />
     <b :class="$style.csv2">엑셀 · CSV 파일 업로드</b>
     <b :class="$style.csv">기관에서 사용하는 엑셀·CSV 파일을 그대로 올려보세요.<br/>별도의 서식 정리 없이 바로 업로드할 수 있어요.</b>
 
@@ -89,14 +84,12 @@ const rowDividers = [1288, 1427, 1566, 1705]
     </div>
 
     <!-- 상태 필터 + 검색 -->
-    <template v-for="f in filters" :key="f.label">
-      <div :class="[$style.filterPill, 'btn',
-                    activeFilter === f.label ? [$style.filterPillOn, 'btn-fill'] : 'btn-outline']"
-           role="button" :style="{ left: `${f.left}px`, width: `${f.width}px` }"
-           @click="activeFilter = f.label" />
-      <div :class="[$style.filterLabel, activeFilter === f.label && $style.filterLabelOn, 'btn-label']"
-           :style="{ left: `${f.textLeft}px` }">{{ f.label }}</div>
-    </template>
+    <div :class="$style.filterRow">
+      <div v-for="f in filters" :key="f" role="button"
+           :class="[$style.filterPill, 'btn',
+                    activeFilter === f ? [$style.filterPillOn, 'btn-fill'] : 'btn-outline']"
+           @click="activeFilter = f">{{ f }}</div>
+    </div>
     <div :class="$style.searchBox">
       <div :class="$style.searchBoxBg" />
       <div :class="$style.searchPlaceholder">파일명 · 기관 · 항목 검색</div>
@@ -156,9 +149,8 @@ const rowDividers = [1288, 1427, 1566, 1705]
   height: 2341px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: left;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   color: #6b7280;
   font-family: Pretendard;
   transform-origin: top left;
@@ -167,7 +159,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   text-decoration: underline;
   color: #00559e;
   text-align: center;
@@ -176,7 +168,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
   text-align: center;
@@ -185,12 +177,13 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 85px;
   left: calc(50% - 386px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
 }
 .caAaca4862A5402b585a54a82eParent {
   position: absolute;
+  font-size: var(--font-body-01);
   top: 82px;
   left: 50px;
   width: 144px;
@@ -225,34 +218,35 @@ const rowDividers = [1288, 1427, 1566, 1705]
   left: 51px;
   line-height: 35px;
 }
-.child {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .csv2 {
   position: absolute;
   top: 299px;
   left: calc(50% - 866px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #0053e3;
 }
 .csv {
   position: absolute;
   top: 364px;
   left: calc(50% - 866px);
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .div24 {
   position: absolute;
   top: 228px;
   left: 50px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   font-weight: 600;
   color: #00559e;
   text-align: center;
@@ -287,7 +281,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 571px;
   left: 98px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #0053e3;
 }
@@ -305,7 +299,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 571px;
   left: 900px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #fff;
 }
@@ -313,7 +307,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 571px;
   left: 936px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #00559e;
 }
@@ -331,7 +325,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 571px;
   left: 1738px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #fff;
 }
@@ -339,7 +333,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 571px;
   left: 1774px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #d1d5db;
 }
@@ -359,7 +353,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 735px;
   left: 103px;
-  font-size: 35px;
+  font-size: var(--font-title-03);
   line-height: 45px;
   color: #000;
 }
@@ -367,7 +361,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   position: absolute;
   top: 785px;
   left: 103px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
 }
@@ -376,9 +370,9 @@ const rowDividers = [1288, 1427, 1566, 1705]
   top: 745px;
   left: calc(50% + 541px);
   width: 322px;
-  height: 75px;
+  height: 56px;
   text-align: center;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   color: #fff;
 }
 .alertButtonBg {
@@ -388,44 +382,49 @@ const rowDividers = [1288, 1427, 1566, 1705]
   border-radius: 10px;
   background-color: #004ec2;
   width: 320px;
-  height: 75px;
+  height: 56px;
 }
 .alertButtonLabel {
   position: absolute;
-  top: 15px;
+  top: 0px;
   left: 0px;
-  line-height: 45px;
+  line-height: 56px;
   display: inline-block;
   width: 322px;
   height: 45px;
 }
-/* ── 상태 필터 + 검색 ───────────────────────── */
-.filterPill {
+/* 상태 필터 알약 — 원본은 알약마다 좌표와 폭을 박아둬서 좌우 패딩이 57~65px
+   까지 벌어져 있었다(높이 44px 보다 큼). flex 행으로 바꿔 내용에 맞게 줄이고
+   패딩을 20px 로 통일한다. */
+.filterRow {
   position: absolute;
-  top: 966px;
+  top: 972px;
+  left: 50px;
+  display: flex;
+  gap: 14px;
+}
+.filterPill {
+  height: 44px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
   border-radius: 40px;
   border: 2px solid #0053e3;
-  box-sizing: border-box;
-  height: 56px;
+  color: #005dff;
+  white-space: nowrap;
 }
 .filterPillOn {
   background-color: #0053e3;
-}
-.filterLabel {
-  position: absolute;
-  top: 976px;
-  color: #005dff;
-}
-.filterLabelOn {
   color: #fff;
 }
 .searchBox {
   position: absolute;
-  top: 956px;
+  top: 966px;
   left: calc(50% - 33px);
   width: 942px;
-  height: 75px;
-  font-size: 20px;
+  height: 56px;
+  font-size: var(--font-body-03);
   color: #a0a0a0;
 }
 .searchBoxBg {
@@ -437,13 +436,13 @@ const rowDividers = [1288, 1427, 1566, 1705]
   border: 2px solid #c2ddf5;
   box-sizing: border-box;
   width: 942px;
-  height: 75px;
+  height: 56px;
 }
 .searchPlaceholder {
   position: absolute;
-  top: 15px;
+  top: 0px;
   left: 24.66px;
-  line-height: 45px;
+  line-height: 56px;
   display: inline-block;
   width: 318.1px;
   height: 45px;
@@ -457,7 +456,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   background-color: #f8f9fc;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 816px;
 }
 .tableHeaderBg {
@@ -468,29 +467,32 @@ const rowDividers = [1288, 1427, 1566, 1705]
   background-color: #f1f7ff;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 99px;
 }
 /* 원본은 빈 img 였던 행 구분선 */
 .rowDivider {
   position: absolute;
   left: 50px;
-  width: 1819px;
+  width: 1820px;
   height: 1px;
   background-color: #d1d5db;
 }
 .tableHead {
   position: absolute;
   top: 1083px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
+  line-height: 30px;
 }
 .sourceCol {
   position: absolute;
+  line-height: 36px;
   left: 120px;
   color: #000;
 }
 .standardCol {
   position: absolute;
+  line-height: 36px;
   left: 458px;
   font-weight: 500;
 }
@@ -508,6 +510,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
 }
 .emptyCell {
   position: absolute;
+  line-height: 36px;
   left: 1214px;
   font-weight: 500;
   text-align: center;
@@ -516,6 +519,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
 }
 .emptyCellWide {
   position: absolute;
+  line-height: 36px;
   left: 1534px;
   font-weight: 500;
   text-align: center;
@@ -528,7 +532,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   left: 871px;
   width: 161px;
   height: 41px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #00559e;
 }
 .badgeBgNeedsCheck {
@@ -592,7 +596,7 @@ const rowDividers = [1288, 1427, 1566, 1705]
   top: 1938px;
   left: 1520px;
   width: 350px;
-  height: 80px;
+  height: 56px;
   text-align: center;
   color: #fff;
 }
@@ -603,11 +607,12 @@ const rowDividers = [1288, 1427, 1566, 1705]
   border-radius: 10px;
   background-color: #0053e3;
   width: 350px;
-  height: 80px;
+  height: 56px;
 }
 .analyzeButtonLabel {
   position: absolute;
-  top: 22px;
+  line-height: 56px;
+  top: 0px;
   left: 64px;
   display: inline-block;
   width: 222px;
@@ -616,9 +621,9 @@ const rowDividers = [1288, 1427, 1566, 1705]
 .child15 {
   position: absolute;
   top: 2097px;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 </style>

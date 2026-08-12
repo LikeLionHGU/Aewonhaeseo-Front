@@ -3,12 +3,13 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import logo from '../assets/logo.png'
 import caretDownIcon from '../assets/caret-down.svg'
+import { DEFAULT_THRESHOLD_SET, THRESHOLD_SETS } from '../constants/thresholdSets'
 import { useDesignScale } from '../composables/useDesignScale'
 
 const DESIGN_WIDTH = 1920
 const BASE_HEIGHT = 2683
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
 // 차트 기하 — Figma 캔버스 좌표 그대로 사용해 축 레이블/월 레이블과 정렬한다.
@@ -24,6 +25,9 @@ const monthValue = [
   1.75, 2.13, 1.86, 2.42, 2.89, 3.41,
   3.8, 3.18, 2.57, 2.19, 1.86, 1.74,
 ]
+
+// 월 레이블 상자 폭 — "10월" 도 들어가고 점 중앙에 놓을 수 있는 크기
+const MONTH_LABEL_WIDTH = 60
 
 const toY = (value: number) => AXIS_ZERO_Y - value * AXIS_UNIT_Y
 
@@ -46,6 +50,19 @@ const UNIT_SEGMENT = {
 
 // 비교 옵션 (그래프 탭)
 const compare = ref('비교 없음')
+
+// 표 탭은 같은 비교 옵션을 드롭다운으로 고른다. 그래프 탭 칩과 라벨 문구가
+// 달라서(디자인 그대로) 상태는 따로 둔다.
+const COMPARE_OPTIONS = ['전년 동기 (2024)', '다른 지점', '비교 없음']
+const tableCompare = ref(COMPARE_OPTIONS[0])
+
+// 기준 초과 분석 탭의 적용 기준치 세트
+const thresholdSet = ref(DEFAULT_THRESHOLD_SET)
+
+// select 의 기본 화살표를 지우고 디자인의 caret 을 배경으로 깐다. Vite 가
+// data URI 로 인라인한 SVG 에는 작은따옴표가 남아 있어서, 따옴표 없는 url()
+// 토큰으로 두면 CSS 선언이 통째로 버려진다. 반드시 큰따옴표로 감싼다.
+const caret = { backgroundImage: `url("${caretDownIcon}")` }
 
 const activeTab = ref<'graph' | 'table' | 'exceed'>('graph')
 // 탭 하단 인디케이터 — 디자인 좌표 그대로.
@@ -142,7 +159,7 @@ const overHighlight = computed(() => ({
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${designHeight * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})`, height: `${designHeight}px` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})`, height: `${designHeight}px` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
@@ -153,7 +170,7 @@ const overHighlight = computed(() => ({
       <b :class="$style.b3">볼래</b>
       <b :class="$style.b4">ㅓ</b>
     </div>
-    <div :class="$style.child" />
+    <div :class="$style.profile" />
     <div :class="$style.item" />
     <b :class="$style.bod25">2025년 인천 지점 BOD 월평균 2.5 mg/L, 기준치 3.0 초과 3개월</b>
     <div :class="$style.mgl">6 · 7· 8월 연속 초과 · 최고치 7월 3.8mg/L (기준 대비 + 27%)</div>
@@ -163,7 +180,7 @@ const overHighlight = computed(() => ({
       <div :class="$style.groupChild" />
       <div :class="$style.div5">
         <span :class="$style.span">지점</span>
-        <span :class="$style.span2"> </span>
+        <span :class="$style.span2">&nbsp;</span>
         <span :class="$style.span3">인천(한강대교)</span>
       </div>
     </div>
@@ -178,7 +195,7 @@ const overHighlight = computed(() => ({
       <div :class="$style.groupChild" />
       <div :class="$style.div5">
         <span :class="$style.span">기간</span>
-        <span :class="$style.span2"> </span>
+        <span :class="$style.span2">&nbsp;</span>
         <span :class="$style.span3">2025-01~12</span>
       </div>
     </div>
@@ -186,7 +203,7 @@ const overHighlight = computed(() => ({
       <div :class="$style.rectangleDiv" />
       <div :class="$style.div8">
         <span :class="$style.span">집계</span>
-        <span :class="$style.span2"> </span>
+        <span :class="$style.span2">&nbsp;</span>
         <span :class="$style.span3">월별 평균</span>
       </div>
     </div>
@@ -194,7 +211,7 @@ const overHighlight = computed(() => ({
       <div :class="$style.groupChild2" />
       <div :class="$style.bod2">
         <span :class="$style.span">항목</span>
-        <span :class="$style.span2"> </span>
+        <span :class="$style.span2">&nbsp;</span>
         <span :class="$style.span3">BOD</span>
       </div>
     </div>
@@ -231,16 +248,16 @@ const overHighlight = computed(() => ({
       <b :class="[$style.b16, 'link']" @click="compare = '+다른 지점'">+다른 지점</b>
       <img :class="$style.polygonIcon" :src="caretDownIcon" alt="" />
     </template>
-    <template v-else-if="activeTab === 'table'">
-      <div :class="$style.compareSelect" />
-      <b :class="$style.compareSelectLabel">전년 동기 (2024)</b>
-      <img :class="$style.compareSelectArrow" :src="caretDownIcon" alt="" />
-    </template>
-    <template v-else>
-      <div :class="$style.thresholdSelect" />
-      <b :class="$style.thresholdSelectLabel">하천 생활환경기준 등급</b>
-      <img :class="$style.thresholdSelectArrow" :src="caretDownIcon" alt="" />
-    </template>
+    <select v-else-if="activeTab === 'table'" v-model="tableCompare"
+            :class="[$style.tabSelect, $style.compareSelect]" :style="caret" aria-label="비교 옵션">
+      <option v-for="name in COMPARE_OPTIONS" :key="name" :value="name">{{ name }}</option>
+    </select>
+    <select v-else v-model="thresholdSet" :class="[$style.tabSelect, $style.thresholdSelect]"
+            :style="caret" aria-label="적용 기준치 세트">
+      <optgroup v-for="group in THRESHOLD_SETS" :key="group.label" :label="group.label">
+        <option v-for="name in group.options" :key="name" :value="name">{{ name }}</option>
+      </optgroup>
+    </select>
     <b :class="$style.sql" :style="{ top: `${2209 + tabOffset}px` }">이 숫자가 어떻게 나왔는지 확인할 수 있어요 - 생성된 SQL과 원본 데이터 행</b>
     <template v-if="activeTab === 'graph'">
     <div :class="$style.child10" />
@@ -261,23 +278,13 @@ const overHighlight = computed(() => ({
       <circle v-for="(p, i) in points" :key="i" :cx="p.x" :cy="p.y" r="12.5"
               :class="p.over ? $style.dotOver : $style.dot" />
     </svg>
-    <div :class="$style.div9">1월</div>
+    <div v-for="(x, i) in monthX" :key="i" :class="$style.monthLabel"
+         :style="{ left: `${x - MONTH_LABEL_WIDTH / 2}px` }">{{ i + 1 }}월</div>
     <div :class="$style.div10">0</div>
     <div :class="$style.div11">1</div>
     <div :class="$style.div12">2</div>
     <div :class="$style.div13">3</div>
     <div :class="$style.div14">4</div>
-    <div :class="$style.div15">2월</div>
-    <div :class="$style.div16">3월</div>
-    <div :class="$style.div17">4월</div>
-    <div :class="$style.div18">5월</div>
-    <div :class="$style.div19">6월</div>
-    <div :class="$style.div20">7월</div>
-    <div :class="$style.div21">8월</div>
-    <div :class="$style.div22">9월</div>
-    <div :class="$style.div23">10월</div>
-    <div :class="$style.div24">11월</div>
-    <div :class="$style.div25">12월</div>
     <div :class="$style.child37" />
     <div :class="$style.child38" />
     <div :class="$style.child39" />
@@ -350,9 +357,8 @@ const overHighlight = computed(() => ({
   height: 2683px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: left;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   color: #6b7280;
   font-family: Pretendard;
   transform-origin: top left;
@@ -361,6 +367,7 @@ const overHighlight = computed(() => ({
    <b> 태그의 기본 굵기를 눌러 비활성으로 되돌린다. */
 .b {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 85px;
   left: calc(50% - 676px);
   font-weight: 500;
@@ -369,6 +376,7 @@ const overHighlight = computed(() => ({
 }
 .div2 {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 85px;
   left: calc(50% - 528px);
   font-weight: 700;
@@ -378,6 +386,7 @@ const overHighlight = computed(() => ({
 }
 .div3 {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 85px;
   left: calc(50% - 386px);
   font-weight: 500;
@@ -387,7 +396,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 299px;
   left: calc(50% - 866px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #0053e3;
 }
 .caAaca4862A5402b585a54a82eParent {
@@ -397,7 +406,7 @@ const overHighlight = computed(() => ({
   width: 144px;
   height: 35px;
   text-align: center;
-  font-size: 30px;
+  font-size: var(--font-body-01);
   color: #0053e3;
   font-family: 'Ria Sans';
 }
@@ -427,14 +436,15 @@ const overHighlight = computed(() => ({
   left: 51px;
   line-height: 35px;
 }
-.child {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .item {
   position: absolute;
@@ -450,7 +460,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 647px;
   left: 103px;
-  font-size: 35px;
+  font-size: var(--font-title-03);
   line-height: 45px;
   color: #000;
 }
@@ -471,9 +481,9 @@ const overHighlight = computed(() => ({
 .inner {
   position: absolute;
   top: 2439px;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 .rectangleParent {
@@ -482,7 +492,7 @@ const overHighlight = computed(() => ({
   left: 93px;
   width: 363px;
   height: 54px;
-  font-size: 23px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .groupChild {
@@ -520,7 +530,7 @@ const overHighlight = computed(() => ({
   width: 443px;
   height: 54px;
   text-align: center;
-  font-size: 23px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .groupItem {
@@ -548,7 +558,7 @@ const overHighlight = computed(() => ({
   left: 674px;
   width: 363px;
   height: 54px;
-  font-size: 23px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .groupDiv {
@@ -557,7 +567,7 @@ const overHighlight = computed(() => ({
   left: 1051px;
   width: 228px;
   height: 54px;
-  font-size: 23px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .rectangleDiv {
@@ -583,7 +593,7 @@ const overHighlight = computed(() => ({
   left: 470px;
   width: 190px;
   height: 54px;
-  font-size: 23px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .groupChild2 {
@@ -607,28 +617,28 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 645px;
   left: calc(50% + 762px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #0053e3;
 }
 .b6 {
   position: absolute;
   top: 931px;
   left: 50px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
 }
 .b7 {
   position: absolute;
   top: 931px;
   left: 251px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
 }
 .b8 {
   position: absolute;
   top: 931px;
   left: 402px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
 }
 /* 선택된 비교 옵션 */
@@ -776,9 +786,11 @@ const overHighlight = computed(() => ({
   line-height: 45px;
   text-align: center;
 }
+/* Figma 는 이 caret 을 상자 세로 중앙보다 8.5px 아래로 내보냈다.
+   상자 1031~1093(62px), 아이콘 9px → 중앙은 1057.5 이다. */
 .polygonIcon {
   position: absolute;
-  top: 1066px;
+  top: 1057.5px;
   left: 728px;
   width: 9px;
   height: 9px;
@@ -786,31 +798,40 @@ const overHighlight = computed(() => ({
 
 /* ── 표 결과 탭 ─────────────────────────────── */
 /* 비교 컨트롤 (단일 드롭다운) */
-.compareSelect {
+/* 표 · 기준초과 탭의 드롭다운 — 원본은 상자 + 라벨 + 화살표 이미지로 된 가짜
+   드롭다운이었다. 화살표 위치는 원본 아이콘 좌표를 그대로 옮겼다. */
+.tabSelect {
   position: absolute;
   top: 1031px;
-  left: 593px;
+  height: 62px;
+  box-sizing: border-box;
   border-radius: 20px;
   background-color: #f8f9fc;
   border: 1px solid #d1d5db;
-  box-sizing: border-box;
+  background-repeat: no-repeat;
+  background-size: 9px 9px;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  font-family: inherit;
+  font-size: var(--font-body-03);
+  color: #6b7280;
+  cursor: pointer;
+}
+.tabSelect:focus {
+  border-color: #0053e3;
+}
+.compareSelect {
+  left: 593px;
   width: 252px;
-  height: 62px;
+  padding: 0 45px 0 27px;
+  background-position: right 27px center;
 }
-.compareSelectLabel {
-  position: absolute;
-  top: 1039px;
-  left: 620px;
-  font-size: 25px;
-  line-height: 45px;
-  text-align: center;
-}
-.compareSelectArrow {
-  position: absolute;
-  top: 1066px;
-  left: 809px;
-  width: 9px;
-  height: 9px;
+.thresholdSelect {
+  left: 613px;
+  width: 299px;
+  padding: 0 42px 0 23px;
+  background-position: right 24px center;
 }
 /* 표 본체 */
 .tableCard {
@@ -820,7 +841,7 @@ const overHighlight = computed(() => ({
   background-color: #f8f9fc;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 837px;
 }
 .tableHeaderBg {
@@ -830,7 +851,7 @@ const overHighlight = computed(() => ({
   background-color: #f1f7ff;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 99px;
 }
 .tableOverHighlight {
@@ -838,42 +859,48 @@ const overHighlight = computed(() => ({
   left: 52px;
   border-radius: 0px 0px 18px 18px;
   background-color: rgba(255, 0, 0, 0.06);
-  width: 1815px;
+  width: 1816px;
 }
 .tableDivider {
   position: absolute;
   left: 50px;
-  width: 1819px;
+  width: 1820px;
   height: 1px;
   background-color: #d1d5db;
 }
 .tableHead {
   position: absolute;
-  font-size: 25px;
+  font-size: var(--font-body-03);
+  line-height: 30px;
 }
 .tableMonth {
   position: absolute;
-  font-size: 30px;
+  font-size: var(--font-body-03);
+  line-height: 36px;
   color: #000;
 }
 .tableCell {
   position: absolute;
-  font-size: 30px;
+  font-size: var(--font-body-03);
+  line-height: 36px;
   font-weight: 500;
 }
 .tableCellOver {
   position: absolute;
-  font-size: 30px;
+  font-size: var(--font-body-03);
+  line-height: 36px;
   color: #ff0000;
 }
 .tableDeltaUp {
   position: absolute;
-  font-size: 25px;
+  font-size: var(--font-body-03);
+  line-height: 30px;
   color: #ff0000;
 }
 .tableDeltaDown {
   position: absolute;
-  font-size: 25px;
+  font-size: var(--font-body-03);
+  line-height: 30px;
   color: #00a26a;
 }
 
@@ -883,35 +910,9 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 1039px;
   left: 473px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   text-align: center;
-}
-.thresholdSelect {
-  position: absolute;
-  top: 1031px;
-  left: 613px;
-  border-radius: 20px;
-  background-color: #f8f9fc;
-  border: 1px solid #d1d5db;
-  box-sizing: border-box;
-  width: 299px;
-  height: 62px;
-}
-.thresholdSelectLabel {
-  position: absolute;
-  top: 1039px;
-  left: 636px;
-  font-size: 25px;
-  line-height: 45px;
-  text-align: center;
-}
-.thresholdSelectArrow {
-  position: absolute;
-  top: 1066px;
-  left: 879px;
-  width: 9px;
-  height: 9px;
 }
 /* KPI 카드 */
 .kpiCard {
@@ -928,26 +929,26 @@ const overHighlight = computed(() => ({
 .kpiLabel {
   position: absolute;
   top: 1178px;
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .kpiValue {
   position: absolute;
   top: 1231px;
-  font-size: 60px;
+  font-size: var(--font-metric);
   color: #000;
 }
 .kpiValueAccent {
   color: #ff0000;
 }
 .kpiSuffix {
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #6b7280;
 }
 .kpiNote {
   position: absolute;
   top: 1311px;
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
 }
@@ -968,7 +969,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 1199px;
   left: 101px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #000;
 }
@@ -976,7 +977,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 2209px;
   left: 103px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   color: #9ca3af;
 }
@@ -984,7 +985,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 1394px;
   left: 868px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #ff0000;
 }
@@ -992,7 +993,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 1420px;
   left: 1137px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #ff0000;
 }
@@ -1000,7 +1001,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 1291px;
   left: 959px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #ff0000;
 }
@@ -1015,7 +1016,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 1342px;
   left: 1001px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #ff0000;
 }
@@ -1058,13 +1059,18 @@ const overHighlight = computed(() => ({
 .dotOver {
   fill: #ff0000;
 }
-.div9 {
+/* 월 레이블 — 원본은 12개 좌표를 하나씩 박아 25px 기준으로 데이터 점 아래
+   중앙을 맞췄다. 글자 크기가 바뀌면 어긋나므로 고정 폭 상자에 가운데 정렬해
+   점 좌표에서 직접 계산한다. */
+.monthLabel {
   position: absolute;
   top: 1843px;
-  left: 201px;
+  width: 60px;
+  text-align: center;
   line-height: 45px;
   font-weight: 500;
 }
+
 .div10 {
   position: absolute;
   top: 1813px;
@@ -1097,83 +1103,6 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 1372px;
   left: 179px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div15 {
-  position: absolute;
-  top: 1843px;
-  left: 336px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div16 {
-  position: absolute;
-  top: 1844px;
-  left: 470px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div17 {
-  position: absolute;
-  top: 1843px;
-  left: 602px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div18 {
-  position: absolute;
-  top: 1843px;
-  left: 735px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div19 {
-  position: absolute;
-  top: 1843px;
-  left: 872px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div20 {
-  position: absolute;
-  top: 1843px;
-  left: 1006px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div21 {
-  position: absolute;
-  top: 1843px;
-  left: 1141px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div22 {
-  position: absolute;
-  top: 1843px;
-  left: 1274px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div23 {
-  position: absolute;
-  top: 1843px;
-  left: 1402px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div24 {
-  position: absolute;
-  top: 1843px;
-  left: 1536px;
-  line-height: 45px;
-  font-weight: 500;
-}
-.div25 {
-  position: absolute;
-  top: 1843px;
-  left: 1671px;
   line-height: 45px;
   font-weight: 500;
 }
@@ -1247,9 +1176,9 @@ const overHighlight = computed(() => ({
   top: 2201px;
   left: calc(50% + 576px);
   width: 243.2px;
-  height: 61px;
+  height: 48px;
   text-align: center;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #fff;
 }
 .groupChild3 {
@@ -1259,13 +1188,13 @@ const overHighlight = computed(() => ({
   border-radius: 10px;
   background-color: #004ec2;
   width: 243.2px;
-  height: 61px;
+  height: 48px;
 }
 .b24 {
   position: absolute;
-  top: 8px;
+  top: 0px;
   left: 49px;
-  line-height: 45px;
+  line-height: 48px;
   display: inline-block;
   width: 145px;
   height: 45px;
@@ -1274,7 +1203,7 @@ const overHighlight = computed(() => ({
   position: absolute;
   top: 210px;
   left: 50px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   font-weight: 600;
   color: #00559e;
   text-align: center;

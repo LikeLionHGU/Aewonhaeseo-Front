@@ -9,7 +9,7 @@ import { useDesignScale } from '../composables/useDesignScale'
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 1330
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
 const hasData = ref(false)
@@ -21,7 +21,7 @@ function connectSampleData() {
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <b :class="$style.b">무엇부터 시작할까요?</b>
     <b :class="$style.b2">데이터를 먼저 연결하거나, 이미 연결된 데이터로 바로 분석을 시작할 수 있어요.</b>
     <div :class="$style.child" />
@@ -39,7 +39,7 @@ function connectSampleData() {
       <b :class="$style.b6">볼래</b>
       <b :class="$style.b7">ㅓ</b>
     </div>
-    <div :class="$style.ellipseDiv" />
+    <div :class="$style.profile" />
     <div :class="[$style.rectangleParent, 'btn']" role="button" @click="router.push('/upload')">
       <div :class="[$style.groupChild, 'btn-fill']" />
       <div :class="$style.csv2">엑셀·CSV 업로드</div>
@@ -76,27 +76,36 @@ function connectSampleData() {
   height: 1330px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: center;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #6b7280;
   font-family: Pretendard;
   transform-origin: top left;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .b {
   position: absolute;
   top: 304px;
-  left: calc(50% - 171px);
-  font-size: 40px;
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
+  font-size: var(--font-title-02);
   background: linear-gradient(-86.07deg, #3482ff, #42a8ff 65.38%, #0053e3);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면
+   오른쪽으로 밀렸다. 실제 중앙 정렬로 바꿔 크기와 무관하게 고정한다. */
 .b2 {
   position: absolute;
   top: 364px;
-  left: calc(50% - 397px);
-  font-size: 26px;
+  left: 0px;
+  width: 100%;
+  text-align: center;
+  font-size: var(--font-body-02);
   line-height: 45px;
 }
 .child {
@@ -126,9 +135,9 @@ function connectSampleData() {
 .inner {
   position: absolute;
   top: 1086px;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 .groupIcon {
@@ -142,14 +151,14 @@ function connectSampleData() {
   position: absolute;
   top: 589px;
   left: calc(50% - 389px);
-  font-size: 30px;
+  font-size: var(--font-body-01);
   color: #0053e3;
 }
 .b4 {
   position: absolute;
   top: 589px;
   left: calc(50% + 257px);
-  font-size: 30px;
+  font-size: var(--font-body-01);
   color: #0053e3;
 }
 .csv {
@@ -177,7 +186,7 @@ function connectSampleData() {
   left: 50px;
   width: 144px;
   height: 35px;
-  font-size: 30px;
+  font-size: var(--font-body-01);
   color: #0053e3;
   font-family: 'Ria Sans';
 }
@@ -207,14 +216,15 @@ function connectSampleData() {
   left: 51px;
   line-height: 35px;
 }
-.ellipseDiv {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .rectangleParent {
   position: absolute;
@@ -310,7 +320,7 @@ function connectSampleData() {
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
 }
@@ -318,7 +328,7 @@ function connectSampleData() {
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
 }
@@ -326,7 +336,7 @@ function connectSampleData() {
   position: absolute;
   top: 85px;
   left: calc(50% - 386px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
   text-align: left;

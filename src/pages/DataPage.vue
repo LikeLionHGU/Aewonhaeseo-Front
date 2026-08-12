@@ -9,7 +9,7 @@ const DESIGN_WIDTH = 1920
 // 원본 캔버스는 2177px 이지만 푸터(1937 + 244)가 4px 잘려서 끝까지 맞춘다.
 const DESIGN_HEIGHT = 2181
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
 // 요약 카드 — 카드 왼쪽에서 51px 들어간 자리에 글이 놓인다.
@@ -54,12 +54,7 @@ const statCards = [
 ]
 
 // 상태 필터
-const filters = [
-  { label: '전체', left: 50, width: 170, textLeft: 109 },
-  { label: '확인 필요 3', left: 234, width: 217, textLeft: 274 },
-  { label: '완료 2', left: 465, width: 173, textLeft: 513 },
-  { label: '실패 1', left: 652, width: 173, textLeft: 700 },
-]
+const filters = ['전체', '확인 필요 3', '완료 2', '실패 1']
 const activeFilter = ref('전체')
 
 // 파일 목록 — 행 간격이 원본에서 불규칙해 좌표를 그대로 쓴다.
@@ -117,7 +112,7 @@ const rowDividers = [1170, 1309, 1448, 1587]
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
@@ -127,7 +122,7 @@ const rowDividers = [1170, 1309, 1448, 1587]
       <b :class="$style.b5">볼래</b>
       <b :class="$style.b6">ㅓ</b>
     </div>
-    <div :class="$style.ellipseDiv" />
+    <div :class="$style.profile" />
     <b :class="$style.b3">내 데이터</b>
     <b :class="$style.b2">업로드한 파일과 용어 표준화 상태를 확인할 수 있어요.</b>
 
@@ -148,14 +143,12 @@ const rowDividers = [1170, 1309, 1448, 1587]
     </template>
 
     <!-- 상태 필터 + 검색 -->
-    <template v-for="f in filters" :key="f.label">
-      <div :class="[$style.filterPill, 'btn',
-                    activeFilter === f.label ? [$style.filterPillOn, 'btn-fill'] : 'btn-outline']"
-           role="button" :style="{ left: `${f.left}px`, width: `${f.width}px` }"
-           @click="activeFilter = f.label" />
-      <div :class="[$style.filterLabel, activeFilter === f.label && $style.filterLabelOn, 'btn-label']"
-           :style="{ left: `${f.textLeft}px` }">{{ f.label }}</div>
-    </template>
+    <div :class="$style.filterRow">
+      <div v-for="f in filters" :key="f" role="button"
+           :class="[$style.filterPill, 'btn',
+                    activeFilter === f ? [$style.filterPillOn, 'btn-fill'] : 'btn-outline']"
+           @click="activeFilter = f">{{ f }}</div>
+    </div>
     <div :class="$style.rectangleParent">
       <div :class="$style.groupChild" />
       <div :class="$style.div15">파일명 · 기관 · 항목 검색</div>
@@ -220,9 +213,8 @@ const rowDividers = [1170, 1309, 1448, 1587]
   height: 2181px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: left;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   color: #6b7280;
   font-family: Pretendard;
   transform-origin: top left;
@@ -231,7 +223,7 @@ const rowDividers = [1170, 1309, 1448, 1587]
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   text-decoration: underline;
   color: #00559e;
   text-align: center;
@@ -240,7 +232,7 @@ const rowDividers = [1170, 1309, 1448, 1587]
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
   text-align: center;
@@ -249,7 +241,7 @@ const rowDividers = [1170, 1309, 1448, 1587]
   position: absolute;
   top: 85px;
   left: calc(50% - 386px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
 }
@@ -260,6 +252,7 @@ const rowDividers = [1170, 1309, 1448, 1587]
   width: 144px;
   height: 35px;
   text-align: center;
+  font-size: var(--font-body-01);
   color: #0053e3;
   font-family: 'Ria Sans';
 }
@@ -289,27 +282,28 @@ const rowDividers = [1170, 1309, 1448, 1587]
   left: 51px;
   line-height: 35px;
 }
-.ellipseDiv {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .b3 {
   position: absolute;
   top: 299px;
   left: calc(50% - 866px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #0053e3;
 }
 .b2 {
   position: absolute;
   top: 347px;
   left: calc(50% - 866px);
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .rectangleParent7 {
@@ -317,9 +311,9 @@ const rowDividers = [1170, 1309, 1448, 1587]
   top: 288px;
   left: calc(50% + 580px);
   width: 320px;
-  height: 75px;
+  height: 56px;
   text-align: center;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   color: #fff;
 }
 .groupChild15 {
@@ -329,13 +323,13 @@ const rowDividers = [1170, 1309, 1448, 1587]
   border-radius: 10px;
   background-color: #004ec2;
   width: 320px;
-  height: 75px;
+  height: 56px;
 }
 .csv4 {
   position: absolute;
-  top: 15px;
+  top: 0px;
   left: 27px;
-  line-height: 45px;
+  line-height: 56px;
   display: inline-block;
   width: 266px;
   height: 45px;
@@ -354,14 +348,14 @@ const rowDividers = [1170, 1309, 1448, 1587]
 .statLabel {
   position: absolute;
   top: 457px;
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   color: #00559e;
 }
 .statValue {
   position: absolute;
   top: 510px;
-  font-size: 60px;
+  font-size: var(--font-metric);
   color: #0053e3;
 }
 .statValueAccent {
@@ -370,37 +364,42 @@ const rowDividers = [1170, 1309, 1448, 1587]
 .statNote {
   position: absolute;
   top: 590px;
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
 }
-/* ── 상태 필터 ──────────────────────────────── */
-.filterPill {
+/* 상태 필터 알약 — 원본은 알약마다 좌표와 폭을 박아둬서 좌우 패딩이 57~65px
+   까지 벌어져 있었다(높이 44px 보다 큼). flex 행으로 바꿔 내용에 맞게 줄이고
+   패딩을 20px 로 통일한다. */
+.filterRow {
   position: absolute;
-  top: 848px;
+  top: 854px;
+  left: 50px;
+  display: flex;
+  gap: 14px;
+}
+.filterPill {
+  height: 44px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
   border-radius: 40px;
   border: 2px solid #0053e3;
-  box-sizing: border-box;
-  height: 56px;
+  color: #005dff;
+  white-space: nowrap;
 }
 .filterPillOn {
   background-color: #0053e3;
-}
-.filterLabel {
-  position: absolute;
-  top: 858px;
-  color: #005dff;
-}
-.filterLabelOn {
   color: #fff;
 }
 .rectangleParent {
   position: absolute;
-  top: 838px;
+  top: 848px;
   left: calc(50% - 121px);
   width: 1030px;
-  height: 75px;
-  font-size: 20px;
+  height: 56px;
+  font-size: var(--font-body-03);
   color: #a0a0a0;
 }
 .groupChild {
@@ -412,13 +411,13 @@ const rowDividers = [1170, 1309, 1448, 1587]
   border: 2px solid #c2ddf5;
   box-sizing: border-box;
   width: 1030px;
-  height: 75px;
+  height: 56px;
 }
 .div15 {
   position: absolute;
-  top: 15px;
+  top: 0px;
   left: 26.97px;
-  line-height: 45px;
+  line-height: 56px;
   display: inline-block;
   width: 347.8px;
   height: 45px;
@@ -432,7 +431,7 @@ const rowDividers = [1170, 1309, 1448, 1587]
   background-color: #f8f9fc;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 816px;
 }
 .child7 {
@@ -443,21 +442,22 @@ const rowDividers = [1170, 1309, 1448, 1587]
   background-color: #f1f7ff;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 99px;
 }
 /* 원본은 빈 img 였던 행 구분선 */
 .rowDivider {
   position: absolute;
   left: 50px;
-  width: 1819px;
+  width: 1820px;
   height: 1px;
   background-color: #d1d5db;
 }
 .tableHead {
   position: absolute;
   top: 965px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
+  line-height: 30px;
 }
 .fileCell {
   position: absolute;
@@ -465,16 +465,21 @@ const rowDividers = [1170, 1309, 1448, 1587]
   height: 72px;
   color: #000;
 }
+/* 표 본문 — 헤더(.tableHead 25px)와 크기를 맞춘다. line-height 는 이전 줄 상자
+   높이(30px 의 normal ≈ 36px)를 그대로 유지해 세로 위치가 밀리지 않게 한다. */
 .fileName {
   position: absolute;
   top: 0px;
   left: 0px;
+  font-size: var(--font-body-03);
+  line-height: 36px;
 }
 .fileMeta {
   position: absolute;
   top: 42px;
   left: 0px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
+  line-height: 30px;
   font-weight: 500;
   color: #9ca3af;
   display: inline-block;
@@ -482,18 +487,21 @@ const rowDividers = [1170, 1309, 1448, 1587]
 }
 .cell {
   position: absolute;
+  font-size: var(--font-body-03);
+  line-height: 36px;
   font-weight: 500;
 }
 .action {
   position: absolute;
-  font-size: 25px;
+  font-size: var(--font-body-03);
+  line-height: 30px;
 }
 /* ── 매핑 상태 위젯 ─────────────────────────── */
 .mappingCell {
   position: absolute;
   width: 161px;
   height: 68px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #00559e;
 }
 .barTrack {
@@ -572,9 +580,9 @@ const rowDividers = [1170, 1309, 1448, 1587]
 .child12 {
   position: absolute;
   top: 1937px;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 </style>

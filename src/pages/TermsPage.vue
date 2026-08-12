@@ -8,7 +8,7 @@ import { useDesignScale } from '../composables/useDesignScale'
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 2894
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
 const stepConnectors = [
@@ -83,7 +83,7 @@ const previewDividers = [1509, 1628]
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
@@ -93,7 +93,7 @@ const previewDividers = [1509, 1628]
       <b :class="$style.b6">볼래</b>
       <b :class="$style.b7">ㅓ</b>
     </div>
-    <div :class="$style.child" />
+    <div :class="$style.profile" />
     <b :class="$style.b2">용어 확인</b>
     <b :class="$style.ai">AI가 정확히 판단하기 어려운 항목만 모았어요. <br/>실제 데이터와 용어를 확인하고 맞는 항목을 선택해주세요.</b>
 
@@ -208,9 +208,8 @@ const previewDividers = [1509, 1628]
   height: 2894px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: left;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   color: #6b7280;
   font-family: Pretendard;
   transform-origin: top left;
@@ -219,7 +218,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   text-decoration: underline;
   color: #00559e;
   text-align: center;
@@ -228,7 +227,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
   text-align: center;
@@ -237,12 +236,13 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 85px;
   left: calc(50% - 386px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
 }
 .caAaca4862A5402b585a54a82eParent {
   position: absolute;
+  font-size: var(--font-body-01);
   top: 82px;
   left: 50px;
   width: 144px;
@@ -277,34 +277,35 @@ const previewDividers = [1509, 1628]
   left: 51px;
   line-height: 35px;
 }
-.child {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .b2 {
   position: absolute;
   top: 299px;
   left: calc(50% - 866px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #0053e3;
 }
 .ai {
   position: absolute;
   top: 364px;
   left: calc(50% - 866px);
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .div17 {
   position: absolute;
   top: 228px;
   left: 50px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   font-weight: 600;
   color: #00559e;
   text-align: center;
@@ -337,7 +338,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 571px;
   left: 98px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #0053e3;
 }
@@ -354,7 +355,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 571px;
   left: 900px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #fff;
 }
@@ -362,7 +363,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 571px;
   left: 936px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #00559e;
 }
@@ -379,7 +380,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 571px;
   left: 1738px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #fff;
 }
@@ -387,7 +388,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 571px;
   left: 1774px;
-  font-size: 26px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #d1d5db;
 }
@@ -407,7 +408,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 735px;
   left: 103px;
-  font-size: 35px;
+  font-size: var(--font-title-03);
   line-height: 45px;
   color: #000;
 }
@@ -422,7 +423,7 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 785px;
   left: 103px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
 }
@@ -451,6 +452,8 @@ const previewDividers = [1509, 1628]
 }
 .b24 {
   position: absolute;
+  font-size: var(--font-body-02);
+  line-height: 36px;
   top: 1006px;
   left: 100px;
 }
@@ -471,11 +474,13 @@ const previewDividers = [1509, 1628]
 }
 .listName {
   position: absolute;
+  font-size: var(--font-body-02);
+  line-height: 36px;
   color: #000;
 }
 .listFile {
   position: absolute;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
 }
@@ -485,7 +490,7 @@ const previewDividers = [1509, 1628]
   width: 159.2px;
   height: 45px;
   text-align: center;
-  font-size: 20px;
+  font-size: var(--font-body-03);
 }
 .badgeBgLow {
   position: absolute;
@@ -565,6 +570,8 @@ const previewDividers = [1509, 1628]
 }
 .b25 {
   position: absolute;
+  font-size: var(--font-body-02);
+  line-height: 36px;
   top: 1006px;
   left: 704px;
 }
@@ -572,14 +579,15 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 1090px;
   left: calc(50% - 256px);
-  font-size: 45px;
+  font-size: var(--font-body-01);
+  line-height: 54px;
   color: #0053e3;
 }
 .xlsxC {
   position: absolute;
   top: 1150px;
   left: 704px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
 }
@@ -608,6 +616,8 @@ const previewDividers = [1509, 1628]
 }
 .b13 {
   position: absolute;
+  font-size: var(--font-body-02);
+  line-height: 36px;
   top: 1265px;
   left: 802px;
   display: inline-block;
@@ -634,6 +644,7 @@ const previewDividers = [1509, 1628]
 }
 .previewHead {
   position: absolute;
+  line-height: 36px;
   top: 1343px;
   display: inline-block;
   width: 86px;
@@ -647,6 +658,7 @@ const previewDividers = [1509, 1628]
 }
 .previewCell {
   position: absolute;
+  line-height: 36px;
   font-weight: 500;
   color: #000;
   display: inline-block;
@@ -668,6 +680,7 @@ const previewDividers = [1509, 1628]
 }
 .b14 {
   position: absolute;
+  line-height: 36px;
   top: 1771px;
   left: 802px;
   display: inline-block;
@@ -675,6 +688,8 @@ const previewDividers = [1509, 1628]
 }
 .b26 {
   position: absolute;
+  font-size: var(--font-body-02);
+  line-height: 36px;
   top: 1908px;
   left: 704px;
 }
@@ -693,14 +708,15 @@ const previewDividers = [1509, 1628]
   position: absolute;
   top: 2021px;
   left: calc(50% - 200px);
-  font-size: 45px;
+  font-size: var(--font-body-01);
+  line-height: 54px;
   color: #0053e3;
 }
 .div16 {
   position: absolute;
   top: 2089px;
   left: 760px;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
   white-space: pre-wrap;
@@ -711,7 +727,7 @@ const previewDividers = [1509, 1628]
   top: 2223px;
   left: 704px;
   width: 455px;
-  height: 73px;
+  height: 56px;
   text-align: center;
   color: #fff;
 }
@@ -722,7 +738,7 @@ const previewDividers = [1509, 1628]
   border-radius: 20px;
   background-color: #0053e3;
   width: 455px;
-  height: 73px;
+  height: 56px;
 }
 /* Figma 는 라벨 박스를 글리프 높이(26px)로 내보내고 그 박스를 가운데 맞췄지만,
    브라우저의 줄 상자는 line-height: normal 로 36px 이라 글자가 5px 쯤 아래로
@@ -733,14 +749,14 @@ const previewDividers = [1509, 1628]
   left: 83.2px;
   display: inline-block;
   width: 288.6px;
-  height: 73px;
-  line-height: 73px;
+  height: 56px;
+  line-height: 56px;
 }
 .actionSecondary {
   position: absolute;
   top: 2223px;
   width: 301.8px;
-  height: 73px;
+  height: 56px;
   text-align: center;
   color: #0053e3;
 }
@@ -752,7 +768,7 @@ const previewDividers = [1509, 1628]
   border: 2px solid #0053e3;
   box-sizing: border-box;
   width: 301.8px;
-  height: 73px;
+  height: 56px;
 }
 .actionSecondaryLabel {
   position: absolute;
@@ -760,15 +776,15 @@ const previewDividers = [1509, 1628]
   left: 55.18px;
   display: inline-block;
   width: 191.4px;
-  height: 73px;
-  line-height: 73px;
+  height: 56px;
+  line-height: 56px;
 }
 .child19 {
   position: absolute;
   top: 2650px;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 </style>

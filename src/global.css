@@ -1,10 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Gmarket+Sans:wght@700&display=swap');
 
+/* ── 타이포 스케일 ────────────────────────────────────────────────────
+   Figma 내보내기에는 23·24·25·26px 처럼 사실상 같은 크기가 여러 갈래로
+   흩어져 있었다. 9단계로 정리하고 페이지들은 이 토큰만 참조한다.
+   전체 글자 크기를 조정할 때는 여기 값만 바꾸면 된다.
+
+   값은 1920px 디자인 캔버스 기준이며, useDesignScale 의 배율이 곱해진다. */
+:root {
+  --font-display: 70px; /* 랜딩 히어로 */
+  --font-metric: 60px; /* 요약 카드 숫자 */
+  --font-title-01: 50px; /* 큰 제목 */
+  --font-title-02: 40px; /* 페이지 제목 · 뒤로가기 화살표 */
+  --font-title-03: 35px; /* 카드 강조 제목 */
+  --font-body-01: 30px; /* 소제목 · 본문 크게 */
+  --font-body-02: 25px; /* 본문 기본 */
+  --font-body-03: 20px; /* 보조 텍스트 · 캡션 */
+  --font-code: 20px; /* SQL 블록 — 모노스페이스는 같은 크기에서 더 작게 읽힌다 */
+}
+
+/* 캔버스 좌우 여백에 드러나는 바탕색. 페이지 배경과 같은 색이라 여백이
+   따로 보이지 않고 이어진다. 랜딩만 캔버스가 #fff 라 그 페이지에서 따로 맞춘다. */
 body {
   margin: 0;
   line-height: normal;
-  background-color: #0d1c46;
+  background-color: #f8f9fc;
 }
 
 /* ── 버튼 상호작용 ────────────────────────────────────────────────────

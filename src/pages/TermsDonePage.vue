@@ -6,13 +6,13 @@ import { useDesignScale } from '../composables/useDesignScale'
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 1292
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 </script>
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
@@ -22,7 +22,7 @@ const router = useRouter()
       <b :class="$style.b4">볼래</b>
       <b :class="$style.b5">ㅓ</b>
     </div>
-    <div :class="$style.child" />
+    <div :class="$style.profile" />
 
     <!-- 완료 표시 — 원본은 빈 img 였다 -->
     <svg :class="$style.item" viewBox="0 0 144 144" role="img" aria-label="확인 완료">
@@ -59,9 +59,8 @@ const router = useRouter()
   height: 1292px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: center;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   color: #00559e;
   font-family: Pretendard;
   transform-origin: top left;
@@ -70,26 +69,27 @@ const router = useRouter()
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   text-decoration: underline;
 }
 .div2 {
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
 }
 .div3 {
   position: absolute;
   top: 85px;
   left: calc(50% - 386px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   text-align: left;
 }
 .caAaca4862A5402b585a54a82eParent {
   position: absolute;
+  font-size: var(--font-body-01);
   top: 82px;
   left: 50px;
   width: 144px;
@@ -123,14 +123,15 @@ const router = useRouter()
   left: 51px;
   line-height: 35px;
 }
-.child {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .item {
   position: absolute;
@@ -139,18 +140,28 @@ const router = useRouter()
   width: 144px;
   height: 144px;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .b2 {
   position: absolute;
   top: 526px;
-  left: calc(50% - 200px);
-  font-size: 50px;
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
+  font-size: var(--font-title-01);
   color: #0053e3;
   text-align: left;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면
+   오른쪽으로 밀렸다. 실제 중앙 정렬로 바꿔 크기와 무관하게 고정한다. */
 .b8 {
   position: absolute;
   top: 640px;
-  left: calc(50% - 281px);
+  left: 0px;
+  width: 100%;
+  text-align: center;
   line-height: 45px;
   color: #6b7280;
 }
@@ -159,7 +170,7 @@ const router = useRouter()
   top: 807px;
   left: 497px;
   width: 455px;
-  height: 73px;
+  height: 56px;
   color: #0053e3;
 }
 .groupItem {
@@ -170,7 +181,7 @@ const router = useRouter()
   border: 2px solid #0053e3;
   box-sizing: border-box;
   width: 455px;
-  height: 73px;
+  height: 56px;
 }
 /* Figma 는 이 두 라벨을 서로 다른 높이(36px / 26px)로 내보냈다. 줄 상자는 둘 다
    36px 이라 26px 로 내보낸 쪽만 글자가 4.5px 아래로 내려간다. 나란히 놓인 버튼이라
@@ -181,15 +192,15 @@ const router = useRouter()
   left: 73.11px;
   display: inline-block;
   width: 321.9px;
-  height: 73px;
-  line-height: 73px;
+  height: 56px;
+  line-height: 56px;
 }
 .rectangleParent {
   position: absolute;
   top: 807px;
   left: 964px;
   width: 455px;
-  height: 73px;
+  height: 56px;
   color: #fff;
 }
 .groupChild {
@@ -199,7 +210,7 @@ const router = useRouter()
   border-radius: 20px;
   background-color: #0053e3;
   width: 455px;
-  height: 73px;
+  height: 56px;
 }
 .b6 {
   position: absolute;
@@ -207,22 +218,22 @@ const router = useRouter()
   left: 83.2px;
   display: inline-block;
   width: 288.6px;
-  height: 73px;
-  line-height: 73px;
+  height: 56px;
+  line-height: 56px;
 }
 .inner {
   position: absolute;
   top: 1048px;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 .div4 {
   position: absolute;
   top: 228px;
   left: 50px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   font-weight: 600;
 }
 </style>

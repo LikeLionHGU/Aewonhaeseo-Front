@@ -11,13 +11,13 @@ import { useDesignScale } from '../composables/useDesignScale'
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 5668
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 </script>
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-    <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+    <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <div :class="$style.child" />
     <div :class="$style.item" />
     <b :class="$style.b">엑셀을 여는 순간<br/>지쳐버리는 수질 데이터 분석,</b>
@@ -92,19 +92,20 @@ const router = useRouter()
 </template>
 
 <style module>
+/* 이 페이지만 캔버스가 #fff 라 좌우 여백도 같은 색으로 맞춘다 */
 .viewport {
   width: 100%;
   overflow: hidden;
   position: relative;
+  background-color: #fff;
 }
 .div {
   width: 1920px;
   height: 5668px;
   position: relative;
   background-color: #fff;
-  overflow: hidden;
   text-align: center;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   color: #fff;
   font-family: Pretendard;
   transform-origin: top left;
@@ -112,9 +113,9 @@ const router = useRouter()
 .child {
   position: absolute;
   top: 0px;
-  left: 0px;
+  left: -100px;
   background: linear-gradient(180deg, #00123f, #000);
-  width: 1920px;
+  width: 2120px;
   height: 1046px;
   flex-shrink: 0;
 }
@@ -133,7 +134,7 @@ const router = useRouter()
   position: absolute;
   top: 250px;
   left: 105px;
-  font-size: 70px;
+  font-size: var(--font-display);
   text-align: left;
   flex-shrink: 0;
 }
@@ -141,7 +142,7 @@ const router = useRouter()
   position: absolute;
   top: 456px;
   left: 105px;
-  font-size: 70px;
+  font-size: var(--font-display);
   background: linear-gradient(94.87deg, #42a8ff, #00d6f3);
   background-clip: text;
   -webkit-background-clip: text;
@@ -151,6 +152,7 @@ const router = useRouter()
 }
 .div2 {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 676px;
   left: 105px;
   line-height: 45px;
@@ -165,7 +167,7 @@ const router = useRouter()
   border-radius: 20px;
   background-color: #0053e3;
   width: 252px;
-  height: 97px;
+  height: 64px;
   flex-shrink: 0;
 }
 .rectangleDiv {
@@ -176,26 +178,30 @@ const router = useRouter()
   border: 2px solid #455772;
   box-sizing: border-box;
   width: 353px;
-  height: 97px;
+  height: 64px;
   flex-shrink: 0;
 }
 .div3 {
   position: absolute;
-  top: 809px;
-  left: 150px;
-  line-height: 45px;
+  width: 252px;
+  font-size: var(--font-body-02);
+  top: 783px;
+  left: 105px;
+  line-height: 64px;
   font-weight: 600;
-  text-align: left;
+  text-align: center;
   flex-shrink: 0;
 }
 .div4 {
   position: absolute;
-  top: 809px;
-  left: calc(50% - 511px);
-  line-height: 45px;
+  text-align: center;
+  font-size: var(--font-body-02);
+  top: 783px;
+  left: 386px;
+  line-height: 64px;
   font-weight: 600;
   display: inline-block;
-  width: 228px;
+  width: 353px;
   flex-shrink: 0;
 }
 .caAaca4862A5402b585a54a82eIcon {
@@ -210,17 +216,23 @@ const router = useRouter()
 .child2 {
   position: absolute;
   top: 1043px;
-  left: 0px;
+  left: -100px;
   background-color: #000;
-  width: 1920px;
+  width: 2120px;
   height: 3444px;
   flex-shrink: 0;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .ai {
   position: absolute;
   top: 1304px;
-  left: calc(50% - 459px);
-  font-size: 40px;
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
+  font-size: var(--font-title-02);
   line-height: 55px;
   flex-shrink: 0;
 }
@@ -228,7 +240,7 @@ const router = useRouter()
   position: absolute;
   top: 3431px;
   left: calc(50% - 811px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   line-height: 55px;
   text-align: left;
   flex-shrink: 0;
@@ -270,7 +282,7 @@ const router = useRouter()
   position: absolute;
   top: 1770px;
   left: 310px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #00d7f3;
   flex-shrink: 0;
@@ -279,7 +291,7 @@ const router = useRouter()
   position: absolute;
   top: 1770px;
   left: 794px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #00d7f3;
   flex-shrink: 0;
@@ -288,7 +300,7 @@ const router = useRouter()
   position: absolute;
   top: 1770px;
   left: 1340px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #00d7f3;
   flex-shrink: 0;
@@ -297,7 +309,7 @@ const router = useRouter()
   position: absolute;
   top: 1840px;
   left: 218px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 35px;
   flex-shrink: 0;
 }
@@ -305,7 +317,7 @@ const router = useRouter()
   position: absolute;
   top: 1840px;
   left: 751px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 35px;
   flex-shrink: 0;
 }
@@ -313,7 +325,7 @@ const router = useRouter()
   position: absolute;
   top: 1840px;
   left: 1281px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 35px;
   flex-shrink: 0;
 }
@@ -342,7 +354,7 @@ const router = useRouter()
   position: absolute;
   top: 1241px;
   left: calc(50% - 61px);
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-family: 'Gmarket Sans';
   color: #00d7f3;
@@ -352,7 +364,7 @@ const router = useRouter()
   position: absolute;
   top: 3368px;
   left: calc(50% - 811px);
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   font-family: 'Gmarket Sans';
   color: #00d7f3;
@@ -387,7 +399,7 @@ const router = useRouter()
   position: absolute;
   top: 2415px;
   left: calc(50% - 490px);
-  font-size: 70px;
+  font-size: var(--font-display);
   text-align: left;
   flex-shrink: 0;
   color: #00d7f3;
@@ -403,7 +415,7 @@ const router = useRouter()
   height: 351px;
   flex-shrink: 0;
   text-align: left;
-  font-size: 40px;
+  font-size: var(--font-body-01);
   color: #00d7f3;
 }
 .groupChild {
@@ -426,7 +438,7 @@ const router = useRouter()
   position: absolute;
   top: 176px;
   left: 38px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   color: #f9fafb;
   text-align: center;
@@ -462,21 +474,27 @@ const router = useRouter()
   width: 785px;
   height: 351px;
   flex-shrink: 0;
-  font-size: 40px;
+  font-size: var(--font-body-01);
   color: #00d7f3;
 }
 .b13 {
   position: absolute;
   top: 176px;
   left: 14px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   color: #f9fafb;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .div7 {
   position: absolute;
   top: 2524px;
-  left: calc(50% - 365px);
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
   line-height: 55px;
   font-weight: 500;
   text-align: left;
@@ -485,24 +503,36 @@ const router = useRouter()
 .child7 {
   position: absolute;
   top: 4103px;
-  left: 0px;
+  left: -100px;
   background: linear-gradient(180deg, #000, #0d1c46);
-  width: 1920px;
+  width: 2120px;
   height: 1565px;
   flex-shrink: 0;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .b14 {
   position: absolute;
   top: 4429px;
-  left: calc(50% - 388px);
-  font-size: 70px;
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
+  font-size: var(--font-display);
   flex-shrink: 0;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .ai3 {
   position: absolute;
   top: 4997px;
-  left: calc(50% - 362px);
-  font-size: 70px;
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
+  font-size: var(--font-display);
   background: linear-gradient(94.87deg, #42a8ff, #00d6f3);
   background-clip: text;
   -webkit-background-clip: text;
@@ -554,7 +584,7 @@ const router = useRouter()
   position: absolute;
   top: 3636px;
   left: calc(50% - 732px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   font-family: 'Gmarket Sans';
   color: #005dff;
@@ -565,7 +595,7 @@ const router = useRouter()
   position: absolute;
   top: 3636px;
   left: calc(50% - 143px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   font-family: 'Gmarket Sans';
   color: #005dff;
@@ -576,7 +606,7 @@ const router = useRouter()
   position: absolute;
   top: 3636px;
   left: calc(50% + 498px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   font-family: 'Gmarket Sans';
   color: #005dff;
@@ -591,10 +621,16 @@ const router = useRouter()
   color: #9ca3af;
   flex-shrink: 0;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .ai4 {
   position: absolute;
   top: 3733px;
-  left: calc(50% - 207px);
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
   line-height: 45px;
   color: #9ca3af;
   flex-shrink: 0;

@@ -7,7 +7,7 @@ import { useDesignScale } from '../composables/useDesignScale'
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 2940
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
 // 원본 데이터 행 표 — 행/구분선 간격이 원본에서 불규칙해 좌표를 그대로 쓴다.
@@ -61,7 +61,7 @@ const VIEW_SEGMENT = {
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
@@ -72,7 +72,7 @@ const VIEW_SEGMENT = {
       <b :class="$style.b3">볼래</b>
       <b :class="$style.b4">ㅓ</b>
     </div>
-    <div :class="$style.child" />
+    <div :class="$style.profile" />
     <b :class="$style.b35">이 한 건이 어디서 왔고, 어떻게 초과로 판정됐는지 보여드려요</b>
 
     <!-- 원본 데이터 행 -->
@@ -168,9 +168,8 @@ const VIEW_SEGMENT = {
   height: 2940px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: left;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   color: #6b7280;
   font-family: Pretendard;
   transform-origin: top left;
@@ -179,6 +178,7 @@ const VIEW_SEGMENT = {
    <b> 태그의 기본 굵기를 눌러 비활성으로 되돌린다. */
 .b {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 85px;
   left: calc(50% - 676px);
   font-weight: 500;
@@ -187,6 +187,7 @@ const VIEW_SEGMENT = {
 }
 .div2 {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 85px;
   left: calc(50% - 528px);
   font-weight: 700;
@@ -196,6 +197,7 @@ const VIEW_SEGMENT = {
 }
 .div3 {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 85px;
   left: calc(50% - 386px);
   font-weight: 500;
@@ -205,7 +207,7 @@ const VIEW_SEGMENT = {
   position: absolute;
   top: 299px;
   left: calc(50% - 866px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #0053e3;
 }
 .caAaca4862A5402b585a54a82eParent {
@@ -215,7 +217,7 @@ const VIEW_SEGMENT = {
   width: 144px;
   height: 35px;
   text-align: center;
-  font-size: 30px;
+  font-size: var(--font-body-01);
   color: #0053e3;
   font-family: 'Ria Sans';
 }
@@ -245,27 +247,28 @@ const VIEW_SEGMENT = {
   left: 51px;
   line-height: 35px;
 }
-.child {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .b35 {
   position: absolute;
   top: 364px;
   left: calc(50% - 866px);
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .div4 {
   position: absolute;
   top: 210px;
   left: 50px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   font-weight: 600;
   color: #00559e;
   text-align: center;
@@ -273,8 +276,8 @@ const VIEW_SEGMENT = {
 /* 카드 내부 가로 구분선 (원본은 빈 img) */
 .divider {
   position: absolute;
-  left: 51px;
-  width: 1817px;
+  left: 50px;
+  width: 1820px;
   height: 1px;
   background-color: #d1d5db;
 }
@@ -287,7 +290,7 @@ const VIEW_SEGMENT = {
   background-color: #fbfbfb;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 491px;
 }
 .inner {
@@ -296,42 +299,44 @@ const VIEW_SEGMENT = {
   left: 52px;
   border-radius: 18px 18px 0px 0px;
   background-color: #f4f4f4;
-  width: 1815px;
+  width: 1816px;
   height: 228px;
 }
 .xlsx {
   position: absolute;
   top: 494px;
   left: 105px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   display: inline-block;
   width: 864px;
 }
 .rawHead {
   position: absolute;
+  line-height: 30px;
   top: 617px;
 }
 .rawCell {
   position: absolute;
+  line-height: 30px;
 }
 /* ── 초과 판정 과정 ─────────────────────────── */
 .child17 {
   position: absolute;
   top: 973px;
-  left: 48px;
+  left: 50px;
   border-radius: 20px;
   background-color: #fbfbfb;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 560px;
 }
 .b61 {
   position: absolute;
   top: 1020px;
   left: 105px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   display: inline-block;
   width: 864px;
@@ -340,7 +345,7 @@ const VIEW_SEGMENT = {
   position: absolute;
   top: 1119px;
   height: 196px;
-  font-size: 26px;
+  font-size: var(--font-body-03);
   color: #00559e;
 }
 .stepBoxBg {
@@ -375,7 +380,7 @@ const VIEW_SEGMENT = {
   position: absolute;
   top: 72px;
   left: 47px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #000;
   white-space: nowrap;
 }
@@ -394,7 +399,7 @@ const VIEW_SEGMENT = {
 .stepArrow {
   position: absolute;
   top: 1195px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   line-height: 45px;
   font-weight: 500;
   color: #d9d9d9;
@@ -405,7 +410,7 @@ const VIEW_SEGMENT = {
   position: absolute;
   top: 1435px;
   left: 105px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   display: inline-block;
   width: 864px;
@@ -419,14 +424,14 @@ const VIEW_SEGMENT = {
   background-color: #f4f4f4;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 845px;
 }
 .b36 {
   position: absolute;
   top: 1702px;
   left: 105px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   display: inline-block;
   width: 398px;
@@ -468,7 +473,7 @@ const VIEW_SEGMENT = {
   position: absolute;
   top: 1702px;
   left: 1505px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 /* 선택된 항목은 어두운 배경 위라 흰 글씨 */
@@ -482,14 +487,14 @@ const VIEW_SEGMENT = {
   position: absolute;
   top: 1702px;
   left: 1628px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .b49 {
   position: absolute;
   top: 1702px;
   left: 1742px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .child12 {
@@ -497,7 +502,7 @@ const VIEW_SEGMENT = {
   top: 1789px;
   left: 52px;
   background-color: #eff5fe;
-  width: 1815px;
+  width: 1816px;
   height: 230px;
 }
 .b50 {
@@ -511,7 +516,7 @@ const VIEW_SEGMENT = {
   position: absolute;
   top: 1884px;
   left: 105px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   color: #000;
 }
@@ -523,14 +528,14 @@ const VIEW_SEGMENT = {
   background-color: #fbfbfb;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1817px;
+  width: 1816px;
   height: 294px;
 }
 .b37 {
   position: absolute;
   top: 2053px;
   left: 105px;
-  font-size: 30px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   display: inline-block;
   width: 607px;
@@ -538,7 +543,7 @@ const VIEW_SEGMENT = {
 .mapHead {
   position: absolute;
   top: 2142px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   display: inline-block;
   width: 126px;
@@ -550,16 +555,16 @@ const VIEW_SEGMENT = {
 .child19 {
   position: absolute;
   top: 2435px;
-  left: 54px;
+  left: 52px;
   border-radius: 0px 0px 18px 18px;
   background-color: #eff5fe;
-  width: 1813px;
+  width: 1816px;
   height: 71px;
 }
 .mapSqlCol {
   position: absolute;
   left: 105px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   display: inline-block;
   color: #000;
@@ -568,7 +573,7 @@ const VIEW_SEGMENT = {
 .mapOrigCol {
   position: absolute;
   left: 424px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   display: inline-block;
   color: #000;
@@ -579,7 +584,7 @@ const VIEW_SEGMENT = {
   left: 764px;
   width: 131px;
   height: 45px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
 }
 .mapBadgeAuto {
   position: absolute;
@@ -612,7 +617,7 @@ const VIEW_SEGMENT = {
 .mapConfirm {
   position: absolute;
   left: 1057px;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   line-height: 45px;
   color: #000;
   text-align: center;
@@ -622,9 +627,9 @@ const VIEW_SEGMENT = {
 .child8 {
   position: absolute;
   top: 2696px;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 </style>

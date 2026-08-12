@@ -5,13 +5,13 @@ import logo from '../assets/logo.png'
 import { useDesignScale } from '../composables/useDesignScale'
 
 const DESIGN_WIDTH = 1920
-const DESIGN_HEIGHT = 4143
+const DESIGN_HEIGHT = 3951
 
-const scale = useDesignScale(DESIGN_WIDTH)
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
 // 카드 안을 가로지르는 구분선들 — 원본은 전부 빈 <img> 였다.
-const dividers = [634, 832, 1176, 2276, 2379, 2542, 2615, 2688]
+const dividers = [634, 832, 1176, 2084, 2187, 2350, 2423, 2496]
 
 // 쉬운 말 | SQL | 둘 다 — 선택 하이라이트가 해당 구간으로 이동한다.
 const viewMode = ref<'쉬운 말' | 'SQL' | '둘 다'>('쉬운 말')
@@ -22,7 +22,7 @@ const VIEW_SEGMENT = {
 } as const
 
 // SQL 컬럼 ↔ 원본 컬럼 매핑 표 (행 간격 73px)
-const MAPPING_TOP = 2483
+const MAPPING_TOP = 2291
 const MAPPING_STEP = 73
 const mappingRows = [
   { sqlCol: '측정일', origCol: '측정일자', badge: '자동 매핑', byHuman: false, confirm: '-' },
@@ -33,7 +33,7 @@ const mappingRows = [
 const mappingTop = (i: number) => MAPPING_TOP + i * MAPPING_STEP
 
 // 원본 데이터 행 표 (행 간격 104px)
-const RAW_TOP = 3061
+const RAW_TOP = 2869
 const RAW_STEP = 104
 const RAW_COL = {
   no: 120,
@@ -56,7 +56,7 @@ const rawRows = [
 ]
 const rawTop = (i: number) => RAW_TOP + i * RAW_STEP
 // 표 안 행 구분선 — 헤더 아래 한 줄 + 각 행 아래 70px 지점.
-const rawDividers = [2929, ...rawRows.slice(0, -1).map((_, i) => rawTop(i) + 70)]
+const rawDividers = [2737, ...rawRows.slice(0, -1).map((_, i) => rawTop(i) + 70)]
 const firstOverRow = rawRows.findIndex((r) => r.over)
 const rawHighlight = {
   top: rawTop(firstOverRow) - 34,
@@ -66,7 +66,7 @@ const rawHighlight = {
 
 <template>
   <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
+  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
@@ -77,7 +77,7 @@ const rawHighlight = {
       <b :class="$style.b4">볼래</b>
       <b :class="$style.b5">ㅓ</b>
     </div>
-    <div :class="$style.child" />
+    <div :class="$style.profile" />
     <b :class="$style.b17">질문이 어떻게 해석되고, 어떤 데이터에서 어떻게 계산됐는지 전부 볼 수 있어요.</b>
 
     <!-- ① 질문 → ② 해석 → ③ 데이터 요약 카드 -->
@@ -252,9 +252,8 @@ const rawHighlight = {
   height: 4143px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: left;
-  font-size: 30px;
+  font-size: var(--font-body-03);
   color: #6b7280;
   font-family: Pretendard;
   transform-origin: top left;
@@ -265,7 +264,7 @@ const rawHighlight = {
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
   text-align: center;
@@ -274,7 +273,7 @@ const rawHighlight = {
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 700;
   text-decoration: underline;
   color: #00559e;
@@ -284,7 +283,7 @@ const rawHighlight = {
   position: absolute;
   top: 85px;
   left: calc(50% - 386px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
 }
@@ -292,11 +291,12 @@ const rawHighlight = {
   position: absolute;
   top: 299px;
   left: calc(50% - 866px);
-  font-size: 40px;
+  font-size: var(--font-title-02);
   color: #0053e3;
 }
 .caAaca4862A5402b585a54a82eParent {
   position: absolute;
+  font-size: var(--font-body-01);
   top: 82px;
   left: 50px;
   width: 144px;
@@ -331,20 +331,21 @@ const rawHighlight = {
   left: 51px;
   line-height: 35px;
 }
-.child {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
 }
 .b17 {
   position: absolute;
   top: 364px;
   left: calc(50% - 866px);
-  font-size: 26px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .inner {
@@ -355,14 +356,14 @@ const rawHighlight = {
   background-color: #fbfbfb;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 560px;
 }
 /* 카드 내부 가로 구분선 (원본은 빈 img) */
 .divider {
   position: absolute;
   left: 50px;
-  width: 1819px;
+  width: 1820px;
   height: 1px;
   background-color: #d1d5db;
 }
@@ -372,7 +373,7 @@ const rawHighlight = {
   left: 94px;
   width: 45px;
   height: 45px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
 }
 .ellipseDiv {
   position: absolute;
@@ -396,7 +397,7 @@ const rawHighlight = {
   width: 45px;
   height: 45px;
   text-align: center;
-  font-size: 25px;
+  font-size: var(--font-body-02);
 }
 .b32 {
   position: absolute;
@@ -411,31 +412,32 @@ const rawHighlight = {
   width: 45px;
   height: 45px;
   text-align: center;
-  font-size: 25px;
+  font-size: var(--font-body-02);
 }
 .b34 {
   position: absolute;
   top: 498px;
   left: 169px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
 }
 .b35 {
   position: absolute;
   top: 674px;
   left: 169px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
 }
 .b36 {
   position: absolute;
   top: 872px;
   left: 168px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
 }
 .bod3 {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 543px;
   left: 169px;
   line-height: 45px;
@@ -454,7 +456,7 @@ const rawHighlight = {
   left: 169px;
   width: 279px;
   height: 54px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .groupChild {
@@ -481,7 +483,7 @@ const rawHighlight = {
   left: 1404px;
   width: 259px;
   height: 54px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .groupItem {
@@ -508,7 +510,7 @@ const rawHighlight = {
   left: 461px;
   width: 251px;
   height: 54px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .groupInner {
@@ -535,7 +537,7 @@ const rawHighlight = {
   left: 725px;
   width: 402px;
   height: 54px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .groupChild2 {
@@ -562,7 +564,7 @@ const rawHighlight = {
   left: 1140px;
   width: 251px;
   height: 54px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #455772;
 }
 .div6 {
@@ -580,11 +582,12 @@ const rawHighlight = {
   background-color: #f4f4f4;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
-  height: 1710px;
+  width: 1820px;
+  height: 1518px;
 }
 .sql {
   position: absolute;
+  font-size: var(--font-body-02);
   top: 1090px;
   left: 105px;
   line-height: 45px;
@@ -628,7 +631,7 @@ const rawHighlight = {
   position: absolute;
   top: 1090px;
   left: 1505px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 /* 선택된 항목은 어두운 배경 위라 흰 글씨 */
@@ -642,14 +645,14 @@ const rawHighlight = {
   position: absolute;
   top: 1090px;
   left: 1628px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .b38 {
   position: absolute;
   top: 1090px;
   left: 1742px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   line-height: 45px;
 }
 .child22 {
@@ -657,14 +660,14 @@ const rawHighlight = {
   top: 1177px;
   left: 52px;
   background-color: #eff5fe;
-  width: 1815px;
+  width: 1816px;
   height: 230px;
 }
 .b39 {
   position: absolute;
   top: 1210px;
   left: 105px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #42a8ff;
 }
@@ -684,15 +687,15 @@ const rawHighlight = {
   top: 1486px;
   left: 121px;
   width: 975px;
-  height: 724px;
+  height: 532px;
   box-sizing: border-box;
   margin: 0;
   padding: 36px 40px;
   border-radius: 12px;
   background-color: #fafafa;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'D2Coding', monospace;
-  font-size: 28px;
-  line-height: 54px;
+  font-size: var(--font-code);
+  line-height: 38px;
   color: #374151;
   overflow: hidden;
 }
@@ -701,9 +704,11 @@ const rawHighlight = {
 }
 /* 정렬은 전부 CSS로 잡는다 — Vue 템플릿 컴파일러가 연속 공백을 한 칸으로 접기 때문.
    ch 단위는 monospace 한 글자 폭이라 원본의 칸 수를 그대로 옮길 수 있다. */
+/* AS 정렬 열 — 600px 는 28px 기준이라 크기가 바뀌면 어긋났다. 글자 폭에
+   비례하는 ch 로 바꿔 어떤 크기에서도 같은 자리에 맞춘다. */
 .sqlSelectRow {
   display: grid;
-  grid-template-columns: 600px 1fr;
+  grid-template-columns: 36ch 1fr;
   padding-left: 4ch;
 }
 .sqlClauseRow {
@@ -729,18 +734,18 @@ const rawHighlight = {
 }
 .child2 {
   position: absolute;
-  top: 2467px;
+  top: 2275px;
   left: 52px;
   border-radius: 0px 0px 18px 18px;
   background-color: #fbfbfb;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1815px;
+  width: 1816px;
   height: 294px;
 }
 .sql2 {
   position: absolute;
-  top: 2307px;
+  top: 2115px;
   left: 105px;
   line-height: 45px;
   display: inline-block;
@@ -748,7 +753,7 @@ const rawHighlight = {
 }
 .sql3 {
   position: absolute;
-  top: 2396px;
+  top: 2204px;
   left: 105px;
   line-height: 45px;
   display: inline-block;
@@ -756,7 +761,7 @@ const rawHighlight = {
 }
 .b28 {
   position: absolute;
-  top: 2396px;
+  top: 2204px;
   left: 424px;
   line-height: 45px;
   display: inline-block;
@@ -764,7 +769,7 @@ const rawHighlight = {
 }
 .b29 {
   position: absolute;
-  top: 2396px;
+  top: 2204px;
   left: 766px;
   line-height: 45px;
   display: inline-block;
@@ -772,7 +777,7 @@ const rawHighlight = {
 }
 .b30 {
   position: absolute;
-  top: 2396px;
+  top: 2204px;
   left: 1136px;
   line-height: 45px;
   display: inline-block;
@@ -800,7 +805,7 @@ const rawHighlight = {
   left: 764px;
   width: 131px;
   height: 45px;
-  font-size: 20px;
+  font-size: var(--font-body-03);
 }
 .mapBadgeAuto {
   position: absolute;
@@ -841,7 +846,8 @@ const rawHighlight = {
 }
 .b18 {
   position: absolute;
-  top: 2852px;
+  font-size: var(--font-body-02);
+  top: 2660px;
   left: 105px;
   line-height: 45px;
   display: inline-block;
@@ -849,24 +855,24 @@ const rawHighlight = {
 }
 .child10 {
   position: absolute;
-  top: 2818px;
+  top: 2626px;
   left: 50px;
   border-radius: 20px 20px 0px 0px;
   background-color: #f1f7ff;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 202px;
 }
 .item {
   position: absolute;
-  top: 2921px;
+  top: 2729px;
   left: 50px;
   border-radius: 20px;
   background-color: #f8f9fc;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
-  width: 1819px;
+  width: 1820px;
   height: 837px;
 }
 .child23 {
@@ -874,57 +880,60 @@ const rawHighlight = {
   left: 52px;
   border-radius: 0px 0px 18px 18px;
   background-color: rgba(255, 0, 0, 0.06);
-  width: 1815px;
+  width: 1816px;
 }
 .rawDivider {
   position: absolute;
   left: 50px;
-  width: 1819px;
+  width: 1820px;
   height: 1px;
   background-color: #d1d5db;
 }
 .rawHead {
   position: absolute;
-  top: 2959px;
-  font-size: 25px;
+  top: 2767px;
+  font-size: var(--font-body-03);
 }
 .rawNo {
   position: absolute;
+  line-height: 36px;
   color: #000;
 }
 .rawCell {
   position: absolute;
+  line-height: 36px;
   font-weight: 500;
 }
 .rawCellOver {
   position: absolute;
+  line-height: 36px;
   color: #ff0000;
 }
 .rawVsOver {
   position: absolute;
-  font-size: 25px;
+  font-size: var(--font-body-03);
   color: #ff0000;
 }
 /* 초과 행 클릭 영역 — 셀들 위에 투명하게 덮는다 */
 .rawRowHit {
   position: absolute;
   left: 52px;
-  width: 1815px;
+  width: 1816px;
   height: 104px;
 }
 .child18 {
   position: absolute;
-  top: 3899px;
-  left: 0px;
+  top: 3707px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
 }
 .div37 {
   position: absolute;
   top: 210px;
   left: 50px;
-  font-size: 40px;
+  font-size: var(--font-title-02);
   font-weight: 600;
   color: #00559e;
   text-align: center;

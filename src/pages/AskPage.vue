@@ -1,154 +1,235 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import logo from '../assets/logo.png'
-import searchIcon from '../assets/search.png'
-import { useDesignScale } from '../composables/useDesignScale'
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
+import logo from "../assets/logo.png";
+import searchIcon from "../assets/search.png";
+import { useDesignScale } from "../composables/useDesignScale";
 
-const DESIGN_WIDTH = 1920
-const DESIGN_HEIGHT = 2181
+const DESIGN_WIDTH = 1920;
+const DESIGN_HEIGHT = 2181;
 
-const scale = useDesignScale(DESIGN_WIDTH)
-const router = useRouter()
+const { scale, offsetX } = useDesignScale(DESIGN_WIDTH);
+const router = useRouter();
 
-const PLACEHOLDER = '예: 낙동강 BOD 지난 1년 월별 평균을 보여줘'
-const query = ref('')
+const PLACEHOLDER = "예: 낙동강 BOD 지난 1년 월별 평균을 보여줘";
+const query = ref("");
+const canSubmit = computed(() => query.value.trim().length > 0);
+
+// 질문이 비어 있으면 다음 단계로 넘기지 않는다.
+function submit() {
+  if (!canSubmit.value) return;
+  router.push("/conditions");
+}
 </script>
 
 <template>
-  <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `scale(${scale})` }">
-    <b :class="$style.b">무엇을 분석해드릴까요?</b>
-    <b :class="$style.b2">수질측정망 데이터를 자동으로 집계·분석하고, 계산 근거와 원본 데이터를 함께 제공합니다.</b>
-    <div :class="$style.div2">투명한 기술 검증으로 가장 믿을 수 있는 분석 환경을 만듭니다.</div>
-    <div :class="$style.child" />
-    <div :class="$style.parent">
-      <b :class="$style.b3">수질 데이터에 대해 질문해 보세요</b>
-      <img :class="$style.searchIcon" :src="searchIcon" alt="" />
-    </div>
-    <div :class="$style.rectangleParent">
-      <div :class="$style.groupChild" />
-      <div :class="[$style.bod1, query && $style.bod1Filled]">{{ query || PLACEHOLDER }}</div>
-    </div>
-    <div :class="$style.div3">이렇게 질문해 보세요</div>
-    <div :class="[$style.rectangleGroup, 'btn']" role="button" @click="router.push('/conditions')">
-      <div :class="[$style.groupItem, 'btn-fill']" />
-      <b :class="$style.b4">질문하기 →</b>
-    </div>
-    <div :class="[$style.rectangleContainer, 'btn']" role="button"
-         @click="query = '한강 COD 분기별 기준 초과 횟수'">
-      <div :class="[$style.groupInner, 'btn-fill']" />
-      <div :class="$style.cod">한강 COD 분기별 기준 초과 횟수</div>
-    </div>
-    <div :class="[$style.groupDiv, 'btn']" role="button"
-         @click="query = '금강 DO 전년 동기 대비 비교'">
-      <div :class="[$style.rectangleDiv, 'btn-fill']" />
-      <div :class="$style.do">금강 DO 전년 동기 대비 비교</div>
-    </div>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
-      <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
-      <b :class="$style.b5">물</b>
-      <b :class="$style.b6">볼래</b>
-      <b :class="$style.b7">ㅓ</b>
-    </div>
-    <div :class="$style.item" />
-    <b :class="$style.b8">최근 분석 기록</b>
-    <div :class="$style.div4">전체 기록 보기 →</div>
-    <div :class="$style.inner" />
-    <div :class="$style.child2" />
-    <div :class="$style.child3" />
-    <div :class="$style.child4" />
-    <b :class="$style.bod">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
-    <b :class="$style.bod2">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
-    <b :class="$style.bod3">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
-    <b :class="$style.bod4">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
-    <div :class="$style.inner2">
-      <div :class="$style.rectangleParent2">
-        <div :class="$style.groupChild2" />
-        <b :class="$style.b9">집계 완료</b>
+  <div
+    :class="$style.viewport"
+    :style="{ height: `${DESIGN_HEIGHT * scale}px` }"
+  >
+    <div
+      :class="$style.div"
+      :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }"
+    >
+      <b :class="$style.b">무엇을 분석해드릴까요?</b>
+      <b :class="$style.b2"
+        >수질측정망 데이터를 자동으로 집계·분석하고, 계산 근거와 원본 데이터를
+        함께 제공합니다.</b
+      >
+      <div :class="$style.div2">
+        투명한 기술 검증으로 가장 믿을 수 있는 분석 환경을 만듭니다.
       </div>
-    </div>
-    <div :class="$style.inner3">
-      <div :class="$style.rectangleParent2">
-        <div :class="$style.groupChild2" />
-        <b :class="$style.b9">집계 완료</b>
+      <div :class="$style.child" />
+      <div :class="$style.parent">
+        <b :class="$style.b3">수질 데이터에 대해 질문해 보세요</b>
+        <img :class="$style.searchIcon" :src="searchIcon" alt="" />
       </div>
-    </div>
-    <div :class="$style.inner4">
-      <div :class="$style.rectangleParent2">
-        <div :class="$style.groupChild2" />
-        <b :class="$style.b9">집계 완료</b>
+      <div :class="$style.rectangleParent">
+        <div :class="$style.groupChild" />
+        <input
+          v-model="query"
+          :class="$style.queryInput"
+          type="text"
+          :placeholder="PLACEHOLDER"
+          enterkeyhint="search"
+          aria-label="수질 데이터 질문 입력"
+          @keyup.enter="submit"
+        />
       </div>
-    </div>
-    <div :class="$style.inner5">
-      <div :class="$style.rectangleParent2">
-        <div :class="$style.groupChild2" />
-        <b :class="$style.b9">집계 완료</b>
+      <div :class="$style.div3">이렇게 질문해 보세요</div>
+      <div
+        :class="[$style.rectangleGroup, 'btn']"
+        role="button"
+        :aria-disabled="!canSubmit"
+        @click="submit"
+      >
+        <div
+          :class="[
+            $style.groupItem,
+            canSubmit ? 'btn-fill' : $style.groupItemOff,
+          ]"
+        />
+        <b :class="[$style.b4, !canSubmit && $style.b4Off]">질문하기 →</b>
       </div>
+      <div
+        :class="[$style.rectangleContainer, 'btn']"
+        role="button"
+        @click="query = '한강 COD 분기별 기준 초과 횟수'"
+      >
+        <div :class="[$style.groupInner, 'btn-fill']" />
+        <div :class="$style.cod">한강 COD 분기별 기준 초과 횟수</div>
+      </div>
+      <div
+        :class="[$style.groupDiv, 'btn']"
+        role="button"
+        @click="query = '금강 DO 전년 동기 대비 비교'"
+      >
+        <div :class="[$style.rectangleDiv, 'btn-fill']" />
+        <div :class="$style.do">금강 DO 전년 동기 대비 비교</div>
+      </div>
+      <div
+        :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']"
+        @click="router.push('/')"
+      >
+        <img
+          :class="$style.caAaca4862A5402b585a54a82eIcon"
+          :src="logo"
+          alt="로고"
+        />
+        <b :class="$style.b5">물</b>
+        <b :class="$style.b6">볼래</b>
+        <b :class="$style.b7">ㅓ</b>
+      </div>
+      <div :class="$style.profile" />
+      <b :class="$style.b8">최근 분석 기록</b>
+      <div :class="$style.div4">전체 기록 보기 →</div>
+      <div :class="$style.inner" />
+      <div :class="$style.child2" />
+      <div :class="$style.child3" />
+      <div :class="$style.child4" />
+      <b :class="$style.bod">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
+      <b :class="$style.bod2">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
+      <b :class="$style.bod3">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
+      <b :class="$style.bod4">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
+      <div :class="$style.inner2">
+        <div :class="$style.rectangleParent2">
+          <div :class="$style.groupChild2" />
+          <b :class="$style.b9">집계 완료</b>
+        </div>
+      </div>
+      <div :class="$style.inner3">
+        <div :class="$style.rectangleParent2">
+          <div :class="$style.groupChild2" />
+          <b :class="$style.b9">집계 완료</b>
+        </div>
+      </div>
+      <div :class="$style.inner4">
+        <div :class="$style.rectangleParent2">
+          <div :class="$style.groupChild2" />
+          <b :class="$style.b9">집계 완료</b>
+        </div>
+      </div>
+      <div :class="$style.inner5">
+        <div :class="$style.rectangleParent2">
+          <div :class="$style.groupChild2" />
+          <b :class="$style.b9">집계 완료</b>
+        </div>
+      </div>
+      <div :class="$style.rectangleParent6">
+        <div :class="$style.groupChild6" />
+        <b :class="$style.v241">규칙 v2.4.1</b>
+      </div>
+      <div :class="$style.rectangleParent7">
+        <div :class="$style.groupChild6" />
+        <b :class="$style.v241">규칙 v2.4.1</b>
+      </div>
+      <div :class="$style.rectangleParent8">
+        <div :class="$style.groupChild6" />
+        <b :class="$style.v241">규칙 v2.4.1</b>
+      </div>
+      <div :class="$style.rectangleParent9">
+        <div :class="$style.groupChild6" />
+        <b :class="$style.v241">규칙 v2.4.1</b>
+      </div>
+      <div :class="$style.div5">2024.06.10 14:32 실행</div>
+      <div :class="$style.div6">2024.06.10 14:32 실행</div>
+      <div :class="$style.div7">2024.06.10 14:32 실행</div>
+      <div :class="$style.div8">2024.06.10 14:32 실행</div>
+      <div
+        :class="[$style.rectangleParent10, 'btn']"
+        role="button"
+        @click="router.push('/results')"
+      >
+        <div :class="[$style.groupChild10, 'btn-fill']" />
+        <b :class="$style.b13">결과 보기</b>
+      </div>
+      <div
+        :class="[$style.rectangleParent11, 'btn']"
+        role="button"
+        @click="router.push('/results')"
+      >
+        <div :class="[$style.groupChild10, 'btn-fill']" />
+        <b :class="$style.b13">결과 보기</b>
+      </div>
+      <div
+        :class="[$style.rectangleParent12, 'btn']"
+        role="button"
+        @click="router.push('/results')"
+      >
+        <div :class="[$style.groupChild10, 'btn-fill']" />
+        <b :class="$style.b13">결과 보기</b>
+      </div>
+      <div
+        :class="[$style.rectangleParent13, 'btn']"
+        role="button"
+        @click="router.push('/results')"
+      >
+        <div :class="[$style.groupChild10, 'btn-fill']" />
+        <b :class="$style.b13">결과 보기</b>
+      </div>
+      <div :class="$style.child5" />
+      <img :class="$style.vectorIcon" alt="" />
+      <img :class="$style.child6" alt="" />
+      <b :class="$style.b17">자주 쓰는 템플릿</b>
+      <b :class="$style.b18">월별 항목 추세 분석</b>
+      <b :class="$style.b19">기준 초과 구간 탐지</b>
+      <b :class="$style.b20">전년 동기 대비 분석</b>
+      <div :class="$style.div9">지점/항목/기간을 입력하면 월별 추세 생성</div>
+      <div :class="$style.div10">법정/내부 기준 적용 후 초과 횟수 산출</div>
+      <div :class="$style.div11">동일 지점/항목의 기간 전후 차이 비교</div>
+      <div
+        :class="[$style.rectangleParent14, 'btn']"
+        role="button"
+        @click="router.push('/conditions')"
+      >
+        <div :class="[$style.groupChild14, 'btn-fill']" />
+        <b :class="$style.b9">사용</b>
+      </div>
+      <div
+        :class="[$style.rectangleParent15, 'btn']"
+        role="button"
+        @click="router.push('/conditions')"
+      >
+        <div :class="[$style.groupChild14, 'btn-fill']" />
+        <b :class="$style.b9">사용</b>
+      </div>
+      <div
+        :class="[$style.rectangleParent16, 'btn']"
+        role="button"
+        @click="router.push('/conditions')"
+      >
+        <div :class="[$style.groupChild14, 'btn-fill']" />
+        <b :class="$style.b9">사용</b>
+      </div>
+      <div :class="$style.child7" />
+      <div :class="[$style.div12, 'link']" @click="router.push('/data')">
+        내 데이터
+      </div>
+      <div :class="[$style.div13, 'link']" @click="router.push('/ask')">
+        분석하기
+      </div>
+      <div :class="$style.div14">문의하기</div>
     </div>
-    <div :class="$style.rectangleParent6">
-      <div :class="$style.groupChild6" />
-      <b :class="$style.v241">규칙 v2.4.1</b>
-    </div>
-    <div :class="$style.rectangleParent7">
-      <div :class="$style.groupChild6" />
-      <b :class="$style.v241">규칙 v2.4.1</b>
-    </div>
-    <div :class="$style.rectangleParent8">
-      <div :class="$style.groupChild6" />
-      <b :class="$style.v241">규칙 v2.4.1</b>
-    </div>
-    <div :class="$style.rectangleParent9">
-      <div :class="$style.groupChild6" />
-      <b :class="$style.v241">규칙 v2.4.1</b>
-    </div>
-    <div :class="$style.div5">2024.06.10 14:32 실행</div>
-    <div :class="$style.div6">2024.06.10 14:32 실행</div>
-    <div :class="$style.div7">2024.06.10 14:32 실행</div>
-    <div :class="$style.div8">2024.06.10 14:32 실행</div>
-    <div :class="[$style.rectangleParent10, 'btn']" role="button" @click="router.push('/results')">
-      <div :class="[$style.groupChild10, 'btn-fill']" />
-      <b :class="$style.b13">결과 보기</b>
-    </div>
-    <div :class="[$style.rectangleParent11, 'btn']" role="button" @click="router.push('/results')">
-      <div :class="[$style.groupChild10, 'btn-fill']" />
-      <b :class="$style.b13">결과 보기</b>
-    </div>
-    <div :class="[$style.rectangleParent12, 'btn']" role="button" @click="router.push('/results')">
-      <div :class="[$style.groupChild10, 'btn-fill']" />
-      <b :class="$style.b13">결과 보기</b>
-    </div>
-    <div :class="[$style.rectangleParent13, 'btn']" role="button" @click="router.push('/results')">
-      <div :class="[$style.groupChild10, 'btn-fill']" />
-      <b :class="$style.b13">결과 보기</b>
-    </div>
-    <div :class="$style.child5" />
-    <img :class="$style.vectorIcon" alt="" />
-    <img :class="$style.child6" alt="" />
-    <b :class="$style.b17">자주 쓰는 템플릿</b>
-    <b :class="$style.b18">월별 항목 추세 분석</b>
-    <b :class="$style.b19">기준 초과 구간 탐지</b>
-    <b :class="$style.b20">전년 동기 대비 분석</b>
-    <div :class="$style.div9">지점/항목/기간을 입력하면 월별 추세 생성</div>
-    <div :class="$style.div10">법정/내부 기준 적용 후 초과 횟수 산출</div>
-    <div :class="$style.div11">동일 지점/항목의 기간 전후 차이 비교</div>
-    <div :class="[$style.rectangleParent14, 'btn']" role="button" @click="router.push('/conditions')">
-      <div :class="[$style.groupChild14, 'btn-fill']" />
-      <b :class="$style.b9">사용</b>
-    </div>
-    <div :class="[$style.rectangleParent15, 'btn']" role="button" @click="router.push('/conditions')">
-      <div :class="[$style.groupChild14, 'btn-fill']" />
-      <b :class="$style.b9">사용</b>
-    </div>
-    <div :class="[$style.rectangleParent16, 'btn']" role="button" @click="router.push('/conditions')">
-      <div :class="[$style.groupChild14, 'btn-fill']" />
-      <b :class="$style.b9">사용</b>
-    </div>
-    <div :class="$style.child7" />
-    <div :class="[$style.div12, 'link']" @click="router.push('/data')">내 데이터</div>
-    <div :class="[$style.div13, 'link']" @click="router.push('/ask')">분석하기</div>
-    <div :class="$style.div14">문의하기</div>
-  </div>
   </div>
 </template>
 
@@ -163,34 +244,51 @@ const query = ref('')
   height: 2181px;
   position: relative;
   background-color: #f8f9fc;
-  overflow: hidden;
   text-align: right;
-  font-size: 20px;
+  font-size: var(--font-body-03);
   color: #00559e;
   font-family: Pretendard;
   transform-origin: top left;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .b {
   position: absolute;
   top: 364px;
-  left: calc(50% - 189px);
-  font-size: 40px;
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
+  font-size: var(--font-title-02);
   color: #002f5f;
   flex-shrink: 0;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .b2 {
   position: absolute;
   top: 432px;
-  left: calc(50% - 349px);
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
   line-height: 45px;
   color: #6b7280;
   flex-shrink: 0;
 }
+/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
+   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
+   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .div2 {
   position: absolute;
   top: 2524px;
-  left: calc(50% - 365px);
-  font-size: 30px;
+  left: 0px;
+  right: 0px;
+  width: fit-content;
+  margin-inline: auto;
+  font-size: var(--font-body-01);
   line-height: 55px;
   font-weight: 500;
   color: #fff;
@@ -253,18 +351,33 @@ const query = ref('')
   width: 1184px;
   height: 75px;
 }
-.bod1 {
+/* 실제 입력 필드 — 배경 사각형(.groupChild) 위에 겹쳐 둔다.
+   input 은 폰트를 상속하지 않으므로 명시해야 하고, 루트가 text-align: right
+   이라 정렬도 직접 되돌려야 한다. 원본 텍스트 상자는 700px 이었지만 긴 질문도
+   들어가도록 상자 안쪽 폭(1184 - 좌우 여백 31)을 다 쓴다. */
+.queryInput {
   position: absolute;
   top: 15px;
   left: 31px;
-  line-height: 45px;
-  display: inline-block;
-  width: 700px;
+  width: 1122px;
   height: 45px;
-}
-/* 예시 질문을 고르면 placeholder 회색에서 입력값 색으로 */
-.bod1Filled {
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 45px;
+  text-align: left;
   color: #1f2937;
+}
+.queryInput::placeholder {
+  color: #a0a0a0;
+}
+/* 입력 중임을 테두리로 알린다 */
+.rectangleParent:focus-within .groupChild {
+  border-color: #0053e3;
 }
 .div3 {
   position: absolute;
@@ -279,7 +392,7 @@ const query = ref('')
   top: 626px;
   left: calc(50% + 438px);
   width: 322px;
-  height: 75px;
+  height: 56px;
   flex-shrink: 0;
   text-align: center;
   color: #fff;
@@ -291,16 +404,27 @@ const query = ref('')
   border-radius: 10px;
   background-color: #004ec2;
   width: 322px;
-  height: 75px;
+  height: 56px;
+}
+/* 질문이 비었을 때 — 메인 화면의 "데이터 연결 후 가능" 버튼과 같은 톤.
+   .groupItem 뒤에 와야 배경색을 덮어쓴다. */
+.groupItemOff {
+  background-color: #e5e7eb;
+}
+.rectangleGroup[aria-disabled="true"] {
+  cursor: default;
 }
 .b4 {
   position: absolute;
-  top: 15px;
+  top: 0px;
   left: 91px;
-  line-height: 45px;
+  line-height: 56px;
   display: inline-block;
   width: 139px;
   height: 45px;
+}
+.b4Off {
+  color: #9ca3af;
 }
 .rectangleContainer {
   position: absolute;
@@ -367,9 +491,9 @@ const query = ref('')
   height: 35px;
   flex-shrink: 0;
   text-align: center;
-  font-size: 30px;
+  font-size: var(--font-body-01);
   color: #0053e3;
-  font-family: 'Ria Sans';
+  font-family: "Ria Sans";
 }
 .caAaca4862A5402b585a54a82eIcon {
   position: absolute;
@@ -397,21 +521,22 @@ const query = ref('')
   left: 51px;
   line-height: 35px;
 }
-.item {
+/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
+.profile {
   position: absolute;
-  top: 50px;
-  left: 1770px;
+  top: 76px;
+  left: 1822px;
   border-radius: 50%;
   background-color: #d9d9d9;
-  width: 100px;
-  height: 100px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
 }
 .b8 {
   position: absolute;
   top: 902px;
   left: 210px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #1f2937;
   flex-shrink: 0;
@@ -657,7 +782,7 @@ const query = ref('')
   top: 996px;
   left: 994px;
   width: 131px;
-  height: 55px;
+  height: 44px;
   flex-shrink: 0;
 }
 .groupChild10 {
@@ -669,20 +794,20 @@ const query = ref('')
   border: 2px solid #e6e7eb;
   box-sizing: border-box;
   width: 131px;
-  height: 55px;
+  height: 44px;
 }
 .b13 {
   position: absolute;
-  top: 5px;
+  top: 0px;
   left: 28px;
-  line-height: 45px;
+  line-height: 44px;
 }
 .rectangleParent11 {
   position: absolute;
   top: 1151px;
   left: 994px;
   width: 131px;
-  height: 55px;
+  height: 44px;
   flex-shrink: 0;
 }
 .rectangleParent12 {
@@ -690,7 +815,7 @@ const query = ref('')
   top: 1306px;
   left: 994px;
   width: 131px;
-  height: 55px;
+  height: 44px;
   flex-shrink: 0;
 }
 .rectangleParent13 {
@@ -698,7 +823,7 @@ const query = ref('')
   top: 1461px;
   left: 994px;
   width: 131px;
-  height: 55px;
+  height: 44px;
   flex-shrink: 0;
 }
 .child5 {
@@ -734,7 +859,7 @@ const query = ref('')
   position: absolute;
   top: 986px;
   left: 1256px;
-  font-size: 25px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #1f2937;
   text-align: left;
@@ -744,7 +869,7 @@ const query = ref('')
   position: absolute;
   top: 1068px;
   left: 1256px;
-  font-size: 23px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #1f2937;
   text-align: left;
@@ -754,7 +879,7 @@ const query = ref('')
   position: absolute;
   top: 1202px;
   left: 1256px;
-  font-size: 23px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #1f2937;
   text-align: left;
@@ -764,7 +889,7 @@ const query = ref('')
   position: absolute;
   top: 1336px;
   left: 1256px;
-  font-size: 23px;
+  font-size: var(--font-body-02);
   line-height: 45px;
   color: #1f2937;
   text-align: left;
@@ -838,9 +963,9 @@ const query = ref('')
 .child7 {
   position: absolute;
   top: 1937px;
-  left: 0px;
+  left: -100px;
   background-color: #f3f3f3;
-  width: 1920px;
+  width: 2120px;
   height: 244px;
   flex-shrink: 0;
 }
@@ -848,7 +973,7 @@ const query = ref('')
   position: absolute;
   top: 85px;
   left: calc(50% - 676px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   text-align: center;
   flex-shrink: 0;
@@ -858,7 +983,7 @@ const query = ref('')
   position: absolute;
   top: 85px;
   left: calc(50% - 528px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 700;
   text-decoration: underline;
   text-align: center;
@@ -868,7 +993,7 @@ const query = ref('')
   position: absolute;
   top: 85px;
   left: calc(50% - 386px);
-  font-size: 25px;
+  font-size: var(--font-body-02);
   font-weight: 500;
   text-align: left;
   flex-shrink: 0;
