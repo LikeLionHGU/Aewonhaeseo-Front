@@ -172,7 +172,9 @@ const rowDividers = [1170, 1309, 1448, 1587]
       <div :class="$style.cell" :style="{ top: `${row.top + 18}px`, left: `${COL.period}px` }">{{ row.period }}</div>
       <div :class="$style.cell" :style="{ top: `${row.top + 18}px`, left: `${COL.version}px` }">{{ row.version }}</div>
       <div :class="$style.cell" :style="{ top: `${row.top + 18}px`, left: `${COL.uploaded}px` }">{{ row.uploaded }}</div>
-      <b :class="[$style.action, 'link']" :style="{ top: `${row.top + 21}px`, left: `${COL.action}px` }">확인하기 →</b>
+      <b :class="[$style.action, 'link']" role="button"
+         :style="{ top: `${row.top + 21}px`, left: `${COL.action}px` }"
+         @click="router.push('/terms')">확인하기 →</b>
 
       <!-- 매핑 상태: 진행 중이면 막대 + 알약, 완료면 꽉 찬 막대 + 체크, 실패면 붉은 알약만 -->
       <div :class="$style.mappingCell" :style="{ top: `${row.statusTop}px`, left: `${COL.status}px` }">
