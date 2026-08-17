@@ -1,13 +1,127 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import logo from '../assets/logo.png'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import wordmark from '../assets/wordmark.svg'
+import profileIcon from '../assets/profile.svg'
 import { useDesignScale } from '../composables/useDesignScale'
+import { ApiError, getFile, getMappingRounds, listFiles, listReviews } from '../api'
+import type { FileItem, MappingRounds, ReviewItem } from '../api'
 
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 1292
 
 const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
+const route = useRoute()
+
+const loading = ref(true)
+const loadError = ref('')
+const file = ref<FileItem | null>(null)
+const rounds = ref<MappingRounds | null>(null)
+const reviews = ref<ReviewItem[]>([])
+
+const fileId = computed(() => file.value?.id ?? null)
+
+/**
+ * 판정이 끝난 컬럼 수.
+ *
+ * 매핑 재실행 때문에 같은 컬럼에 검수 행이 여러 개 생길 수 있어서 이름으로 센다.
+ * 용어 확인 화면도 같은 기준으로 묶어 보여주므로 숫자가 어긋나지 않는다.
+ */
+const decidedNames = computed(
+  () => new Set(reviews.value.filter((r) => r.verdict).map((r) => r.raw)),
+)
+
+/**
+ * 확인 내용이 표준 사전 자체에 등록됐는지.
+ *
+ * 판정은 이 파일의 매핑에는 바로 반영되지만(재매핑하면 via: review 로 붙는다)
+ * 사전에는 등록되지 않아 이 값은 false 로 온다. 같은 컬럼명이 다른 파일에
+ * 나오면 다시 확인해야 한다(2026-08-17 확인).
+ */
+const appliedToDictionary = computed(() => {
+  const decided = reviews.value.filter((r) => r.verdict)
+  return decided.length > 0 && decided.every((r) => r.applied_to_dictionary)
+})
+
+const headline = computed(() => {
+  if (loading.value) return '확인 결과를 불러오는 중이에요'
+  if (loadError.value) return '확인 결과를 볼 수 없어요'
+  const count = decidedNames.value.size
+  return count > 0 ? `${count}건 모두 확인했어요` : '확인할 항목이 없었어요'
+})
+
+/** 두 줄로 나눠 보여줄 설명. */
+const detail = computed<string[]>(() => {
+  if (loading.value) return []
+  if (loadError.value) return [loadError.value]
+  if (decidedNames.value.size === 0) {
+    return ['이 파일은 모든 컬럼이 자동으로 매핑됐어요.', '바로 분석을 시작할 수 있습니다.']
+  }
+  if (appliedToDictionary.value) {
+    return ['확인해 주신 내용은 표준 사전에 반영됐어요.', '다음에 같은 용어가 나오면 자동으로 매핑됩니다.']
+  }
+  return [
+    '확인해 주신 내용을 이 파일 매핑에 반영했어요.',
+    '다만 표준 사전에는 등록되지 않아, 다른 파일에서 같은 컬럼이 나오면 한 번 더 확인해야 해요.',
+  ]
+})
+
+/** 파일명 · 현재 자동 매핑률. 매핑을 두 번 이상 돌렸을 때만 증감을 덧붙인다. */
+const statLine = computed(() => {
+  if (loading.value || loadError.value || !rounds.value?.rounds.length) return ''
+  const list = rounds.value.rounds
+  const latest = list[list.length - 1]
+  const parts = [file.value?.filename ?? '파일', `자동 매핑 ${Math.round(latest.auto_mapped_rate)}%`]
+  if (list.length > 1) {
+    const delta = rounds.value.delta
+    const sign = delta > 0 ? '+' : ''
+    parts.push(`${list.length}회차 · 지난 회차 대비 ${sign}${delta}%p`)
+  }
+  return parts.join(' · ')
+})
+
+/** 매핑이 끝난 가장 최근 파일. 갓 올려 아직 안 돌린 파일로 가면 빈 화면만 보인다. */
+function latestMappedFile(items: FileItem[]) {
+  return items.find((f) => f.auto_mapped_rate !== undefined)?.id ?? items[0]?.id ?? null
+}
+
+async function load() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const fromQuery = Number(route.query.fileId)
+    const id =
+      Number.isInteger(fromQuery) && fromQuery > 0
+        ? fromQuery
+        : latestMappedFile((await listFiles({ size: 20 })).items)
+    if (id === null) {
+      loadError.value = '아직 올린 파일이 없어요.'
+      return
+    }
+    const [loaded, roundInfo, reviewPage] = await Promise.all([
+      getFile(id),
+      getMappingRounds(id),
+      listReviews({ file_id: id, status: 'all', size: 200 }),
+    ])
+    file.value = loaded
+    rounds.value = roundInfo
+    reviews.value = reviewPage.items
+  } catch (error) {
+    loadError.value =
+      error instanceof ApiError && error.code !== 'HTTP_ERROR' && error.code !== 'NETWORK_ERROR'
+        ? error.message
+        : '확인 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요'
+  } finally {
+    loading.value = false
+  }
+}
+
+function backToTerms() {
+  router.push({ name: 'terms', query: fileId.value ? { fileId: String(fileId.value) } : {} })
+}
+
+onMounted(load)
 </script>
 
 <template>
@@ -16,22 +130,22 @@ const router = useRouter()
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
-      <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
-      <b :class="$style.b3">물</b>
-      <b :class="$style.b4">볼래</b>
-      <b :class="$style.b5">ㅓ</b>
-    </div>
-    <div :class="$style.profile" />
+    <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
+    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
 
     <!-- 완료 표시 — 원본은 빈 img 였다 -->
     <svg :class="$style.item" viewBox="0 0 144 144" role="img" aria-label="확인 완료">
-      <circle cx="72" cy="72" r="72" fill="#0053E3" />
-      <path d="M42 74 L64 96 L104 50" fill="none" stroke="#fff" stroke-width="11"
+      <circle cx="72" cy="72" r="72" :fill="loadError ? '#D92D20' : '#0053E3'" />
+      <path v-if="loadError" d="M52 52 L92 92 M92 52 L52 92" fill="none" stroke="#fff" stroke-width="11"
+            stroke-linecap="round" stroke-linejoin="round" />
+      <path v-else d="M42 74 L64 96 L104 50" fill="none" stroke="#fff" stroke-width="11"
             stroke-linecap="round" stroke-linejoin="round" />
     </svg>
-    <b :class="$style.b2">3건 모두 확인했어요</b>
-    <b :class="$style.b8">확인해 주신 내용은 표준 사전에 반영됐어요.<br/>다음에 같은 용어가 나오면 자동으로 매핑됩니다.</b>
+    <b :class="[$style.b2, loadError && $style.b2Error]">{{ headline }}</b>
+    <b :class="$style.b8">
+      <template v-for="(line, i) in detail" :key="i"><br v-if="i" />{{ line }}</template>
+    </b>
+    <div v-if="statLine" :class="$style.statLine">{{ statLine }}</div>
 
     <div :class="[$style.rectangleGroup, 'btn']" role="button" @click="router.push('/data')">
       <div :class="[$style.groupItem, 'btn-outline']" />
@@ -43,12 +157,21 @@ const router = useRouter()
     </div>
 
     <div :class="$style.inner" />
-    <div :class="[$style.div4, 'link']" @click="router.push('/terms')">←</div>
+    <div :class="[$style.div4, 'link']" @click="backToTerms">←</div>
   </div>
   </div>
 </template>
 
 <style module>
+/* 서비스 워드로고. 원래는 물방울 아이콘 위에 '물 / 볼래 / ㅓ' 글자를 겹쳐 만들었는데,
+   Ria Sans 가 설치되지 않은 환경에서는 글자 폭이 달라져 어긋난다. 한 장으로 바꾼다. */
+.wordmark {
+  position: absolute;
+  top: 82px;
+  left: 50px;
+  width: 144px;
+  height: 35px;
+}
 .viewport {
   width: 100%;
   overflow: hidden;
@@ -87,49 +210,12 @@ const router = useRouter()
   font-weight: 500;
   text-align: left;
 }
-.caAaca4862A5402b585a54a82eParent {
-  position: absolute;
-  font-size: var(--font-body-01);
-  top: 82px;
-  left: 50px;
-  width: 144px;
-  height: 35px;
-  color: #0053e3;
-  font-family: 'Ria Sans';
-}
-.caAaca4862A5402b585a54a82eIcon {
-  position: absolute;
-  top: 3px;
-  left: 32px;
-  width: 23px;
-  height: 29px;
-  object-fit: cover;
-}
-.b3 {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  line-height: 35px;
-}
-.b4 {
-  position: absolute;
-  top: 0px;
-  left: 81px;
-  line-height: 35px;
-}
-.b5 {
-  position: absolute;
-  top: 0px;
-  left: 51px;
-  line-height: 35px;
-}
 /* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
 .profile {
   position: absolute;
   top: 76px;
   left: 1822px;
   border-radius: 50%;
-  background-color: #d9d9d9;
   width: 48px;
   height: 48px;
 }
@@ -164,6 +250,21 @@ const router = useRouter()
   text-align: center;
   line-height: 45px;
   color: #6b7280;
+}
+.b2Error {
+  color: #d92d20;
+}
+/* 설명 아래 한 줄 — 파일명과 현재 자동 매핑률. 디자인에는 없던 자리지만
+   설명(640)과 버튼(807) 사이가 비어 있어 그 사이에 놓는다. */
+.statLine {
+  position: absolute;
+  top: 730px;
+  left: 0px;
+  width: 100%;
+  text-align: center;
+  line-height: 45px;
+  font-weight: 500;
+  color: #9ca3af;
 }
 .rectangleGroup {
   position: absolute;

@@ -1,128 +1,254 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import logo from '../assets/logo.png'
+import wordmark from '../assets/wordmark.svg'
+import profileIcon from '../assets/profile.svg'
 import checkIcon from '../assets/check.svg'
 import { useDesignScale } from '../composables/useDesignScale'
+import { ApiError, listFiles } from '../api'
+import type { FileItem } from '../api'
 
 const DESIGN_WIDTH = 1920
 // 원본 캔버스는 2177px 이지만 푸터(1937 + 244)가 4px 잘려서 끝까지 맞춘다.
-const DESIGN_HEIGHT = 2181
+const BASE_HEIGHT = 2181
 
 const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
 
+// 한 번에 가져올 파일 수. 목록에 페이지 넘김 UI 가 없어서 한 장으로 받는다.
+const PAGE_SIZE = 50
+
 // 요약 카드 — 카드 왼쪽에서 51px 들어간 자리에 글이 놓인다.
 const TEXT_INSET = 51
-const statCards = [
-  {
-    left: 50,
-    label: '연결된 파일',
-    value: '5',
-    accent: false,
-    notes: [
-      { text: '기관 3곳', dx: 0 },
-      { text: '·', dx: 108 },
-      { text: '2024 - 2025', dx: 133 },
-    ],
-  },
-  {
-    left: 516,
-    label: '전체 컬럼',
-    value: '158',
-    accent: false,
-    notes: [
-      { text: '자동 매핑', dx: 0 },
-      { text: '·', dx: 108 },
-      { text: '사람 확인 3', dx: 133 },
-    ],
-  },
-  {
-    left: 982,
-    label: '확인 필요',
-    value: '3',
-    accent: true,
-    notes: [{ text: '파일 2개에 분산', dx: 0 }],
-  },
-  {
-    left: 1448,
-    label: '처리 실패',
-    value: '1',
-    accent: true,
-    notes: [{ text: '형식 확인 필요', dx: 0 }],
-  },
-]
+const CARD_LEFTS = [50, 516, 982, 1448]
 
-// 상태 필터
-const filters = ['전체', '확인 필요 3', '완료 2', '실패 1']
-const activeFilter = ref('전체')
-
-// 파일 목록 — 행 간격이 원본에서 불규칙해 좌표를 그대로 쓴다.
+// 파일 목록 — 첫 행 1071, 이후 139px 간격.
 const COL = { file: 120, period: 588, status: 871, version: 1214, uploaded: 1481, action: 1700 }
 const MAPPING_TRACK = 161
+const FIRST_ROW_TOP = 1071
+const ROW_H = 139
+const TABLE_HEADER_H = 99
+const TABLE_PAD_BOTTOM = 22
+const BASE_ROWS = 5
+const FOOTER_TOP = 1937
+
+// --- 데이터 ---
+
+const loading = ref(true)
+const loadError = ref('')
+const files = ref<FileItem[]>([])
+
+type FilterKey = 'all' | 'review' | 'done' | 'failed'
+const activeFilter = ref<FilterKey>('all')
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/** '2026-08-16T20:43:12+09:00' → '08-16' */
+function formatDay(iso: string) {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return '-'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
+}
+
+/** 'YYYY-MM-DD' 두 개를 'YYYY-MM ~ MM' 처럼 짧게 묶는다. */
+function formatPeriod(from?: string | null, to?: string | null) {
+  if (!from || !to) return '-'
+  const [fy, fm] = from.split('-')
+  const [ty, tm] = to.split('-')
+  return fy === ty ? `${fy}-${fm} ~ ${tm}` : `${fy}-${fm} ~ ${ty}-${tm}`
+}
 
 type Mapping =
   | { kind: 'partial'; label: string; fill: number }
   | { kind: 'done'; label: string }
   | { kind: 'failed'; label: string }
 
-const fileRows: {
-  top: number
-  statusTop: number
+type Row = {
+  id: number
   name: string
   meta: string
   period: string
   version: string
   uploaded: string
+  pending: number
+  failed: boolean
+  mapped: boolean
   mapping: Mapping
-}[] = [
-  {
-    top: 1071, statusTop: 1073,
-    name: '인천_수질측정_2025.xlsx', meta: '한강유역환경청 · 42개 컬럼',
-    period: '2025-01 ~ 12', version: 'v0.9', uploaded: '08-08',
-    mapping: { kind: 'partial', label: '확인 필요 2', fill: 150 },
-  },
-  {
-    top: 1210, statusTop: 1212,
-    name: '제주_수질측정_2025.xlsx', meta: '제주보건환경연구원 · 38개 컬럼',
-    period: '2025-01 ~ 12', version: 'v0.9', uploaded: '08-08',
-    mapping: { kind: 'partial', label: '확인 필요 2', fill: 150 },
-  },
-  {
-    top: 1343, statusTop: 1345,
-    name: '낙동강_보조측정.CSV', meta: '낙동강유역환경청 · 17개 컬럼',
-    period: '2025-01 ~ 06', version: 'v0.9', uploaded: '08-08',
-    mapping: { kind: 'partial', label: '확인 필요 2', fill: 150 },
-  },
-  {
-    top: 1482, statusTop: 1484,
-    name: '낙동강_보조측정.CSV', meta: '낙동강유역환경청 · 17개 컬럼',
-    period: '2025-01 ~ 06', version: 'v0.9', uploaded: '08-08',
-    mapping: { kind: 'done', label: '확인 완료' },
-  },
-  {
-    top: 1632, statusTop: 1648,
-    name: '영산강_2024_임시.csv', meta: '날짜 컬럼을 찾지 못했어요',
-    period: '2025-01 ~ 06', version: 'v0.9', uploaded: '08-08',
-    mapping: { kind: 'failed', label: '처리 실패' },
-  },
-]
-const rowDividers = [1170, 1309, 1448, 1587]
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  uploaded: '매핑 대기',
+  mapping: '매핑 중',
+  mapped: '매핑 완료',
+  reviewing: '확인 중',
+}
+
+function toRow(item: FileItem): Row {
+  const columns = item.column_count ?? 0
+  const pending = item.pending_review_count ?? 0
+  const mapped = item.auto_mapped_rate !== undefined
+  const failed = item.status === 'failed'
+
+  // 목록 응답이 자동 매핑률을 직접 준다.
+  const ratio = (item.auto_mapped_rate ?? 0) / 100
+
+  let mapping: Mapping
+  if (failed) {
+    mapping = { kind: 'failed', label: '처리 실패' }
+  } else if (pending > 0) {
+    mapping = { kind: 'partial', label: `확인 필요 ${pending}`, fill: MAPPING_TRACK * ratio }
+  } else if (item.status === 'completed' || item.status === 'mapped') {
+    mapping = { kind: 'done', label: '확인 완료' }
+  } else {
+    mapping = {
+      kind: 'partial',
+      label: STATUS_LABEL[item.status] ?? item.status,
+      fill: MAPPING_TRACK * ratio,
+    }
+  }
+
+  return {
+    id: item.id,
+    name: item.filename,
+    meta: `${columns}개 컬럼 · ${formatSize(item.size_bytes)}`,
+    period: formatPeriod(item.measured_from, item.measured_to),
+    version: item.dictionary_version ?? '-',
+    uploaded: formatDay(item.uploaded_at),
+    pending,
+    failed,
+    // 아직 매핑을 돌리지 않았으면 보여줄 결과가 없다.
+    mapped,
+    mapping,
+  }
+}
+
+const rows = computed(() => files.value.map(toRow))
+
+/** 확인이 끝난 파일. 아직 매핑을 안 돌린 파일은 완료가 아니다. */
+const isDone = (row: Row) => !row.failed && row.mapped && row.pending === 0
+
+const counts = computed(() => ({
+  all: rows.value.length,
+  review: rows.value.filter((r) => r.pending > 0).length,
+  done: rows.value.filter(isDone).length,
+  failed: rows.value.filter((r) => r.failed).length,
+}))
+
+const filters = computed(() => [
+  { key: 'all' as FilterKey, label: '전체' },
+  { key: 'review' as FilterKey, label: `확인 필요 ${counts.value.review}` },
+  { key: 'done' as FilterKey, label: `완료 ${counts.value.done}` },
+  { key: 'failed' as FilterKey, label: `실패 ${counts.value.failed}` },
+])
+
+const visibleRows = computed(() => {
+  const key = activeFilter.value
+  if (key === 'all') return rows.value
+  if (key === 'review') return rows.value.filter((r) => r.pending > 0)
+  if (key === 'failed') return rows.value.filter((r) => r.failed)
+  return rows.value.filter(isDone)
+})
+
+// --- 요약 카드 ---
+
+const statCards = computed(() => {
+  const totalColumns = files.value.reduce((sum, f) => sum + (f.column_count ?? 0), 0)
+  const pendingTotal = files.value.reduce((sum, f) => sum + (f.pending_review_count ?? 0), 0)
+  const filesWithPending = counts.value.review
+  const totalBytes = files.value.reduce((sum, f) => sum + f.size_bytes, 0)
+
+  return [
+    {
+      label: '연결된 파일',
+      value: String(counts.value.all),
+      accent: false,
+      notes: [
+        { text: `완료 ${counts.value.done}개`, dx: 0 },
+        { text: '·', dx: 108 },
+        { text: formatSize(totalBytes), dx: 133 },
+      ],
+    },
+    {
+      label: '전체 컬럼',
+      value: String(totalColumns),
+      accent: false,
+      notes: [{ text: `파일 ${counts.value.all}개 합계`, dx: 0 }],
+    },
+    {
+      label: '확인 필요',
+      value: String(pendingTotal),
+      accent: pendingTotal > 0,
+      notes: [
+        {
+          text: filesWithPending > 0 ? `파일 ${filesWithPending}개에 분산` : '남은 항목이 없어요',
+          dx: 0,
+        },
+      ],
+    },
+    {
+      label: '처리 실패',
+      value: String(counts.value.failed),
+      accent: counts.value.failed > 0,
+      notes: [
+        { text: counts.value.failed > 0 ? '형식 확인 필요' : '모두 정상이에요', dx: 0 },
+      ],
+    },
+  ]
+})
+
+// --- 배치 ---
+
+const rowTop = (i: number) => FIRST_ROW_TOP + i * ROW_H
+const rowDividers = computed(() =>
+  visibleRows.value.slice(1).map((_, i) => FIRST_ROW_TOP + 99 + i * ROW_H),
+)
+const tableHeight = computed(
+  () => TABLE_HEADER_H + Math.max(1, visibleRows.value.length) * ROW_H + TABLE_PAD_BOTTOM,
+)
+const shift = computed(() => (Math.max(1, visibleRows.value.length) - BASE_ROWS) * ROW_H)
+const footerTop = computed(() => FOOTER_TOP + shift.value)
+const designHeight = computed(() => BASE_HEIGHT + shift.value)
+
+// --- 불러오기 ---
+
+async function load() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    // 사전 버전·자동 매핑률·측정 기간까지 목록 한 번으로 다 온다.
+    files.value = (await listFiles({ size: PAGE_SIZE })).items
+  } catch (error) {
+    loadError.value =
+      error instanceof ApiError && error.code !== 'HTTP_ERROR' && error.code !== 'NETWORK_ERROR'
+        ? error.message
+        : '파일 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요'
+  } finally {
+    loading.value = false
+  }
+}
+
+function openFile(row: Row) {
+  const query = { fileId: String(row.id) }
+  router.push(row.pending > 0 ? { name: 'terms', query } : { name: 'mapping', query })
+}
+
+onMounted(load)
 </script>
 
 <template>
-  <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
+  <div :class="$style.viewport" :style="{ height: `${designHeight * scale}px` }">
+  <div :class="$style.div"
+       :style="{ transform: `translateX(${offsetX}px) scale(${scale})`, height: `${designHeight}px` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
-      <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
-      <b :class="$style.b4">물</b>
-      <b :class="$style.b5">볼래</b>
-      <b :class="$style.b6">ㅓ</b>
-    </div>
-    <div :class="$style.profile" />
+    <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
+    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
     <b :class="$style.b3">내 데이터</b>
     <b :class="$style.b2">업로드한 파일과 용어 표준화 상태를 확인할 수 있어요.</b>
 
@@ -133,21 +259,21 @@ const rowDividers = [1170, 1309, 1448, 1587]
     </div>
 
     <!-- 요약 카드 -->
-    <template v-for="card in statCards" :key="card.label">
-      <div :class="$style.statCard" :style="{ left: `${card.left}px` }" />
-      <b :class="$style.statLabel" :style="{ left: `${card.left + TEXT_INSET}px` }">{{ card.label }}</b>
+    <template v-for="(card, ci) in statCards" :key="card.label">
+      <div :class="$style.statCard" :style="{ left: `${CARD_LEFTS[ci]}px` }" />
+      <b :class="$style.statLabel" :style="{ left: `${CARD_LEFTS[ci] + TEXT_INSET}px` }">{{ card.label }}</b>
       <b :class="[$style.statValue, card.accent && $style.statValueAccent]"
-         :style="{ left: `${card.left + TEXT_INSET}px` }">{{ card.value }}</b>
+         :style="{ left: `${CARD_LEFTS[ci] + TEXT_INSET}px` }">{{ loading ? '–' : card.value }}</b>
       <div v-for="note in card.notes" :key="note.text + note.dx" :class="$style.statNote"
-           :style="{ left: `${card.left + TEXT_INSET + note.dx}px` }">{{ note.text }}</div>
+           :style="{ left: `${CARD_LEFTS[ci] + TEXT_INSET + note.dx}px` }">{{ loading ? '' : note.text }}</div>
     </template>
 
     <!-- 상태 필터 + 검색 -->
     <div :class="$style.filterRow">
-      <div v-for="f in filters" :key="f" role="button"
+      <div v-for="f in filters" :key="f.key" role="button"
            :class="[$style.filterPill, 'btn',
-                    activeFilter === f ? [$style.filterPillOn, 'btn-fill'] : 'btn-outline']"
-           @click="activeFilter = f">{{ f }}</div>
+                    activeFilter === f.key ? [$style.filterPillOn, 'btn-fill'] : 'btn-outline']"
+           @click="activeFilter = f.key">{{ f.label }}</div>
     </div>
     <div :class="$style.rectangleParent">
       <div :class="$style.groupChild" />
@@ -155,7 +281,7 @@ const rowDividers = [1170, 1309, 1448, 1587]
     </div>
 
     <!-- 파일 목록 -->
-    <div :class="$style.child6" />
+    <div :class="$style.child6" :style="{ height: `${tableHeight}px` }" />
     <div :class="$style.child7" />
     <div v-for="top in rowDividers" :key="top" :class="$style.rowDivider" :style="{ top: `${top}px` }" />
     <b :class="$style.tableHead" :style="{ left: `${COL.file}px` }">파일</b>
@@ -164,20 +290,27 @@ const rowDividers = [1170, 1309, 1448, 1587]
     <b :class="$style.tableHead" :style="{ left: `${COL.version}px` }">사전 버전</b>
     <b :class="$style.tableHead" :style="{ left: `${COL.uploaded}px` }">업로드</b>
 
-    <template v-for="(row, i) in fileRows" :key="i">
-      <div :class="$style.fileCell" :style="{ top: `${row.top}px`, left: `${COL.file}px` }">
+    <div v-if="loading || loadError || !visibleRows.length"
+         :class="[$style.tableNotice, loadError && $style.tableNoticeError]"
+         :style="{ top: `${FIRST_ROW_TOP}px` }">
+      {{ loading ? '파일 목록을 불러오는 중이에요…' : loadError || '이 상태에 해당하는 파일이 없어요.' }}
+    </div>
+
+    <template v-for="(row, i) in visibleRows" :key="row.id">
+      <div :class="$style.fileCell" :style="{ top: `${rowTop(i)}px`, left: `${COL.file}px` }">
         <b :class="$style.fileName">{{ row.name }}</b>
         <div :class="$style.fileMeta">{{ row.meta }}</div>
       </div>
-      <div :class="$style.cell" :style="{ top: `${row.top + 18}px`, left: `${COL.period}px` }">{{ row.period }}</div>
-      <div :class="$style.cell" :style="{ top: `${row.top + 18}px`, left: `${COL.version}px` }">{{ row.version }}</div>
-      <div :class="$style.cell" :style="{ top: `${row.top + 18}px`, left: `${COL.uploaded}px` }">{{ row.uploaded }}</div>
-      <b :class="[$style.action, 'link']" role="button"
-         :style="{ top: `${row.top + 21}px`, left: `${COL.action}px` }"
-         @click="router.push('/terms')">확인하기 →</b>
+      <div :class="$style.cell" :style="{ top: `${rowTop(i) + 18}px`, left: `${COL.period}px` }">{{ row.period }}</div>
+      <div :class="$style.cell" :style="{ top: `${rowTop(i) + 18}px`, left: `${COL.version}px` }">{{ row.version }}</div>
+      <div :class="$style.cell" :style="{ top: `${rowTop(i) + 18}px`, left: `${COL.uploaded}px` }">{{ row.uploaded }}</div>
+      <!-- 실패했거나 아직 매핑 전이면 열어봐야 볼 게 없다. -->
+      <b v-if="!row.failed && row.mapped" :class="[$style.action, 'link']" role="button"
+         :style="{ top: `${rowTop(i) + 21}px`, left: `${COL.action}px` }"
+         @click="openFile(row)">{{ row.pending > 0 ? '확인하기 →' : '결과 보기 →' }}</b>
 
       <!-- 매핑 상태: 진행 중이면 막대 + 알약, 완료면 꽉 찬 막대 + 체크, 실패면 붉은 알약만 -->
-      <div :class="$style.mappingCell" :style="{ top: `${row.statusTop}px`, left: `${COL.status}px` }">
+      <div :class="$style.mappingCell" :style="{ top: `${rowTop(i) + 2}px`, left: `${COL.status}px` }">
         <template v-if="row.mapping.kind !== 'failed'">
           <div :class="$style.barTrack" />
           <div :class="row.mapping.kind === 'done' ? $style.barFillDone : $style.barFill"
@@ -199,12 +332,21 @@ const rowDividers = [1170, 1309, 1448, 1587]
       </div>
     </template>
 
-    <div :class="$style.child12" />
+    <div :class="$style.child12" :style="{ top: `${footerTop}px` }" />
   </div>
   </div>
 </template>
 
 <style module>
+/* 서비스 워드로고. 원래는 물방울 아이콘 위에 '물 / 볼래 / ㅓ' 글자를 겹쳐 만들었는데,
+   Ria Sans 가 설치되지 않은 환경에서는 글자 폭이 달라져 어긋난다. 한 장으로 바꾼다. */
+.wordmark {
+  position: absolute;
+  top: 82px;
+  left: 50px;
+  width: 144px;
+  height: 35px;
+}
 .viewport {
   width: 100%;
   overflow: hidden;
@@ -247,50 +389,12 @@ const rowDividers = [1170, 1309, 1448, 1587]
   font-weight: 500;
   color: #00559e;
 }
-.caAaca4862A5402b585a54a82eParent {
-  position: absolute;
-  top: 82px;
-  left: 50px;
-  width: 144px;
-  height: 35px;
-  text-align: center;
-  font-size: var(--font-body-01);
-  color: #0053e3;
-  font-family: 'Ria Sans';
-}
-.caAaca4862A5402b585a54a82eIcon {
-  position: absolute;
-  top: 3px;
-  left: 32px;
-  width: 23px;
-  height: 29px;
-  object-fit: cover;
-}
-.b4 {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  line-height: 35px;
-}
-.b5 {
-  position: absolute;
-  top: 0px;
-  left: 81px;
-  line-height: 35px;
-}
-.b6 {
-  position: absolute;
-  top: 0px;
-  left: 51px;
-  line-height: 35px;
-}
 /* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
 .profile {
   position: absolute;
   top: 76px;
   left: 1822px;
   border-radius: 50%;
-  background-color: #d9d9d9;
   width: 48px;
   height: 48px;
 }
@@ -461,6 +565,16 @@ const rowDividers = [1170, 1309, 1448, 1587]
   font-size: var(--font-body-03);
   line-height: 30px;
 }
+/* 표 본문 자리에 뜨는 한 줄 안내 — 불러오는 중 · 실패 · 빈 결과 */
+.tableNotice {
+  position: absolute;
+  left: 120px;
+  line-height: 36px;
+  font-weight: 500;
+}
+.tableNoticeError {
+  color: #d92d20;
+}
 .fileCell {
   position: absolute;
   width: 323px;
@@ -475,6 +589,11 @@ const rowDividers = [1170, 1309, 1448, 1587]
   left: 0px;
   font-size: var(--font-body-03);
   line-height: 36px;
+  display: inline-block;
+  width: 440px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .fileMeta {
   position: absolute;

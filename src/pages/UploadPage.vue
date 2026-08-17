@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import logo from '../assets/logo.png'
+import wordmark from '../assets/wordmark.svg'
+import profileIcon from '../assets/profile.svg'
 import uploadIcon from '../assets/upload-large.svg'
 import { useDesignScale } from '../composables/useDesignScale'
+import { ApiError, ingestFile, runMapping, uploadFile } from '../api'
+import type { MappingSummary } from '../api'
 
 const DESIGN_WIDTH = 1920
 
@@ -25,12 +28,35 @@ const stepConnectors = [
   { left: 1046, width: 666 },
 ]
 
-type UploadedFile = { name: string; size: number; progress: number }
+// 카드 한 장의 생애: 올리는 중 → 매핑 중 → (적재 중) → 준비 완료 / 실패.
+// 확인할 컬럼이 남아 있으면 적재를 건너뛴다 — 검수를 마쳐야 날짜가 붙는다.
+type UploadState = 'uploading' | 'mapping' | 'ingesting' | 'ready' | 'failed'
+
+type UploadedFile = {
+  key: number
+  name: string
+  size: number
+  /** 업로드 진행률 0~1. 매핑 단계에서는 쓰지 않는다. */
+  progress: number
+  state: UploadState
+  fileId?: number
+  summary?: MappingSummary
+  /** 적재된 측정값 수. 확인할 컬럼이 남아 있으면 적재하지 않아 비어 있다. */
+  inserted?: number
+  error?: string
+}
+
+// 같은 이름·크기의 파일을 다시 올릴 수 있어서 이름을 키로 쓰면 안 된다.
+let nextKey = 0
 
 const fileInput = ref<HTMLInputElement | null>(null)
+const listHeading = ref<HTMLElement | null>(null)
 const files = ref<UploadedFile[]>([])
 const errors = ref<string[]>([])
 const isDragging = ref(false)
+
+const readyFiles = computed(() => files.value.filter((f) => f.state === 'ready'))
+const canConfirm = computed(() => readyFiles.value.length > 0)
 
 // 파일 카드 — 첫 장이 1583px, 이후 카드는 높이 + 여백만큼 내려간다.
 const CARD_TOP = 1583
@@ -61,9 +87,102 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/** 카드에 띄울 상태 배지. tone 은 아래 statusTone* 스타일과 짝이다. */
+function statusOf(file: UploadedFile) {
+  if (file.state === 'uploading') return { label: '올리는 중', tone: 'busy' }
+  if (file.state === 'mapping') return { label: '매핑 중', tone: 'busy' }
+  if (file.state === 'ingesting') return { label: '적재 중', tone: 'busy' }
+  if (file.state === 'failed') return { label: '실패', tone: 'error' }
+  const left = file.summary ? file.summary.needs_review + file.summary.unmapped : 0
+  return left > 0 ? { label: '확인 필요', tone: 'warn' } : { label: '분석 준비 완료', tone: 'done' }
+}
+
+/** 카드 두 번째 줄 — 파일 크기 뒤에 붙는 설명. */
+function detailOf(file: UploadedFile) {
+  if (file.state === 'uploading') return `올리는 중 ${Math.round(file.progress * 100)}%`
+  if (file.state === 'mapping') return '용어 매핑 중'
+  if (file.state === 'ingesting') return '측정값 넣는 중'
+  if (file.state === 'failed') return file.error ?? '업로드하지 못했어요'
+  if (!file.summary) return '매핑 완료'
+  const left = file.summary.needs_review + file.summary.unmapped
+  const rate = `자동 매핑 ${Math.round(file.summary.auto_mapped_rate)}%`
+  if (left > 0) return `${rate} · 확인 필요 ${left}건`
+  return file.inserted !== undefined ? `${rate} · 측정값 ${file.inserted}건` : rate
+}
+
+/**
+ * 카드에 그대로 노출할 실패 문구.
+ *
+ * 서버가 우리말 설명을 붙여 주면 그게 제일 정확하니 그대로 쓰고, 연결 자체가
+ * 끊겼거나 프록시가 502 를 뱉은 경우처럼 사람이 읽을 게 없는 실패만 갈아끼운다.
+ */
+function messageOf(error: unknown) {
+  if (!(error instanceof ApiError)) return '알 수 없는 오류가 발생했어요'
+  if (error.code === 'HTTP_ERROR' || error.code === 'NETWORK_ERROR') {
+    return '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요'
+  }
+  return error.message
+}
+
+/** 막대 길이. 실패한 카드는 채우지 않는다. */
+function barRatio(file: UploadedFile) {
+  if (file.state === 'uploading') return file.progress
+  if (file.state === 'failed') return 0
+  return 1
+}
+
+/**
+ * 업로드하고 곧바로 매핑까지 돌린다.
+ *
+ * 카드는 files 에 넣은 뒤 배열에서 다시 꺼내 쓴다. push 에 넘긴 원본 객체를
+ * 그대로 고치면 반응형 프록시를 거치지 않아 화면이 갱신되지 않는다.
+ */
+async function runPipeline(source: File, card: UploadedFile) {
+  try {
+    const created = await uploadFile(source, (ratio) => {
+      card.progress = ratio
+    })
+    card.fileId = created.id
+    card.progress = 1
+    card.state = 'mapping'
+
+    const result = await runMapping(created.id)
+    card.summary = result.summary
+
+    // 확인할 컬럼이 없으면 바로 적재한다. 적재를 해야 분석이 볼 수 있다.
+    // 남아 있으면 검수를 마친 뒤 용어 확인 화면에서 적재한다.
+    if (result.summary.needs_review + result.summary.unmapped === 0) {
+      card.state = 'ingesting'
+      const ingested = await ingestFile(created.id)
+      card.inserted = ingested.inserted_values
+    }
+    card.state = 'ready'
+  } catch (error) {
+    card.state = 'failed'
+    card.error = messageOf(error)
+  }
+}
+
+/**
+ * 올린 파일 목록으로 내려준다.
+ *
+ * 카드가 디자인 좌표 1583px 자리에 생겨서 업로드해도 화면에 안 보인다.
+ * 새로 추가했을 때만 한 번 움직이고, 이후 상태 변화(매핑·적재)에는 건드리지 않는다.
+ */
+async function revealUploadedList() {
+  await nextTick()
+  const el = listHeading.value
+  if (!el) return
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  // 제목이 화면 맨 위에 딱 붙지 않도록 조금 위에서 멈춘다.
+  const top = el.getBoundingClientRect().top + window.scrollY - 120
+  window.scrollTo({ top: Math.max(0, top), behavior: reduced ? 'auto' : 'smooth' })
+}
+
 function addFiles(list: FileList | null) {
   if (!list) return
   const nextErrors: string[] = []
+  const queued: { source: File; card: UploadedFile }[] = []
 
   for (const file of Array.from(list)) {
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
@@ -75,11 +194,38 @@ function addFiles(list: FileList | null) {
       nextErrors.push(`${file.name} — 50MB를 넘어요 (${formatSize(file.size)})`)
       continue
     }
-    if (files.value.some((f) => f.name === file.name && f.size === file.size)) continue
-    // 매핑 진행률 — 서버 연동 전이라 디자인의 진행 상태(1148/1388)를 그대로 쓴다.
-    files.value.push({ name: file.name, size: file.size, progress: 1148 / TRACK_WIDTH })
+    // 아직 올라가는 중인 같은 파일만 걸러낸다. 이미 끝난 파일은 다시 올릴 수 있다.
+    if (
+      files.value.some(
+        (f) =>
+          f.name === file.name &&
+          f.size === file.size &&
+          (f.state === 'uploading' || f.state === 'mapping'),
+      )
+    ) {
+      continue
+    }
+
+    files.value.push({
+      key: nextKey++,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      state: 'uploading',
+    })
+    queued.push({ source: file, card: files.value[files.value.length - 1] })
   }
+
   errors.value = nextErrors
+  // 하나도 못 받았으면(형식·용량 탈락) 화면을 움직일 이유가 없다.
+  if (queued.length) void revealUploadedList()
+  for (const { source, card } of queued) void runPipeline(source, card)
+}
+
+function goToMapping() {
+  if (!canConfirm.value) return
+  // 매핑 화면이 어느 파일을 열지 알 수 있게 id 를 넘긴다.
+  router.push({ name: 'mapping', query: { fileId: String(readyFiles.value[0].fileId) } })
 }
 
 function pickFile() {
@@ -105,13 +251,8 @@ function onDrop(event: DragEvent) {
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
-      <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
-      <b :class="$style.b3">물</b>
-      <b :class="$style.b4">볼래</b>
-      <b :class="$style.b5">ㅓ</b>
-    </div>
-    <div :class="$style.profile" />
+    <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
+    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
     <b :class="$style.csv2">엑셀 · CSV 파일 업로드</b>
     <b :class="$style.csv">기관에서 사용하는 엑셀·CSV 파일을 그대로 올려보세요.<br/>별도의 서식 정리 없이 바로 업로드할 수 있어요.</b>
 
@@ -147,28 +288,34 @@ function onDrop(event: DragEvent) {
     </div>
 
     <!-- 올린 파일 -->
-    <b :class="$style.b2">올린 파일</b>
+    <b ref="listHeading" :class="$style.b2">올린 파일</b>
     <template v-if="!files.length">
       <div :class="$style.emptyBox" />
       <div :class="$style.div5">아직 올린 파일이 없어요. 파일을 올리면 여기에 상태가 표시됩니다.</div>
     </template>
     <template v-else>
-      <div v-for="(file, i) in files" :key="file.name + file.size"
+      <div v-for="(file, i) in files" :key="file.key"
            :class="$style.fileCard" :style="{ top: `${cardTop(i)}px` }">
         <b :class="$style.fileName">{{ file.name }}</b>
-        <div :class="$style.fileMeta">
+        <div :class="[$style.fileMeta, file.state === 'failed' && $style.fileMetaError]">
           <span :class="$style.fileMetaSize">{{ formatSize(file.size) }}</span>
-          <b> · 용어 매핑 중</b>
+          <b> · {{ detailOf(file) }}</b>
         </div>
         <div :class="$style.barTrack" />
-        <div :class="$style.barFill" :style="{ width: `${TRACK_WIDTH * file.progress}px` }" />
-        <div :class="$style.statusPill" />
-        <div :class="$style.statusDot" />
-        <div :class="$style.statusLabel">매핑 중</div>
+        <!-- 매핑·적재는 끝나는 시점을 알 수 없어서 진행률 대신 왕복하는 막대로 보여준다. -->
+        <div v-if="file.state === 'mapping' || file.state === 'ingesting'"
+             :class="[$style.barFill, $style.barBusy]" />
+        <div v-else :class="[$style.barFill, $style[`barTone_${statusOf(file).tone}`]]"
+             :style="{ width: `${TRACK_WIDTH * barRatio(file)}px` }" />
+        <div :class="[$style.statusPill, $style[`statusPill_${statusOf(file).tone}`]]" />
+        <div :class="[$style.statusDot, $style[`statusDot_${statusOf(file).tone}`]]" />
+        <div :class="[$style.statusLabel, $style[`statusLabel_${statusOf(file).tone}`]]">
+          {{ statusOf(file).label }}
+        </div>
       </div>
-      <div :class="[$style.confirmButton, 'btn']" role="button"
-           :style="{ top: `${confirmTop}px` }" @click="router.push('/mapping')">
-        <div :class="[$style.confirmButtonBg, 'btn-fill']" />
+      <div :class="[$style.confirmButton, canConfirm ? 'btn' : $style.confirmDisabled]" role="button"
+           :style="{ top: `${confirmTop}px` }" @click="goToMapping">
+        <div :class="[$style.confirmButtonBg, canConfirm && 'btn-fill']" />
         <b :class="$style.confirmButtonLabel">용어 확인하기</b>
       </div>
     </template>
@@ -182,6 +329,15 @@ function onDrop(event: DragEvent) {
 </template>
 
 <style module>
+/* 서비스 워드로고. 원래는 물방울 아이콘 위에 '물 / 볼래 / ㅓ' 글자를 겹쳐 만들었는데,
+   Ria Sans 가 설치되지 않은 환경에서는 글자 폭이 달라져 어긋난다. 한 장으로 바꾼다. */
+.wordmark {
+  position: absolute;
+  top: 82px;
+  left: 50px;
+  width: 144px;
+  height: 35px;
+}
 .viewport {
   width: 100%;
   overflow: hidden;
@@ -220,50 +376,12 @@ function onDrop(event: DragEvent) {
   font-size: var(--font-body-02);
   font-weight: 500;
 }
-.caAaca4862A5402b585a54a82eParent {
-  position: absolute;
-  top: 82px;
-  left: 50px;
-  width: 144px;
-  height: 35px;
-  text-align: center;
-  font-size: var(--font-body-01);
-  color: #0053e3;
-  font-family: 'Ria Sans';
-}
-.caAaca4862A5402b585a54a82eIcon {
-  position: absolute;
-  top: 3px;
-  left: 32px;
-  width: 23px;
-  height: 29px;
-  object-fit: cover;
-}
-.b3 {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  line-height: 35px;
-}
-.b4 {
-  position: absolute;
-  top: 0px;
-  left: 81px;
-  line-height: 35px;
-}
-.b5 {
-  position: absolute;
-  top: 0px;
-  left: 51px;
-  line-height: 35px;
-}
 /* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
 .profile {
   position: absolute;
   top: 76px;
   left: 1822px;
   border-radius: 50%;
-  background-color: #d9d9d9;
   width: 48px;
   height: 48px;
 }
@@ -485,6 +603,9 @@ function onDrop(event: DragEvent) {
 .fileMetaSize {
   font-weight: 500;
 }
+.fileMetaError {
+  color: #d92d20;
+}
 .barTrack {
   position: absolute;
   top: 168px;
@@ -501,6 +622,22 @@ function onDrop(event: DragEvent) {
   border-radius: 10px;
   background-color: #00559e;
   height: 7px;
+  transition: width 0.2s ease-out;
+}
+/* 매핑 중에는 남은 시간을 알 수 없다. 트랙 위를 왕복시켜 "도는 중"만 알린다. */
+.barBusy {
+  width: 400px;
+  animation: barSlide 1.4s ease-in-out infinite alternate;
+}
+@keyframes barSlide {
+  from { transform: translateX(0); }
+  to { transform: translateX(988px); }
+}
+.barTone_warn {
+  background-color: #d97706;
+}
+.barTone_done {
+  background-color: #16a34a;
 }
 .statusPill {
   position: absolute;
@@ -511,6 +648,15 @@ function onDrop(event: DragEvent) {
   width: 210px;
   height: 75px;
 }
+.statusPill_warn {
+  background-color: #fef3c7;
+}
+.statusPill_done {
+  background-color: #dcfce7;
+}
+.statusPill_error {
+  background-color: #fee2e2;
+}
 .statusDot {
   position: absolute;
   top: 104px;
@@ -520,6 +666,15 @@ function onDrop(event: DragEvent) {
   width: 14px;
   height: 14px;
 }
+.statusDot_warn {
+  background-color: #d97706;
+}
+.statusDot_done {
+  background-color: #16a34a;
+}
+.statusDot_error {
+  background-color: #d92d20;
+}
 .statusLabel {
   position: absolute;
   top: 93px;
@@ -528,6 +683,15 @@ function onDrop(event: DragEvent) {
   line-height: 36px;
   font-weight: 600;
   color: #6b7280;
+}
+.statusLabel_warn {
+  color: #d97706;
+}
+.statusLabel_done {
+  color: #16a34a;
+}
+.statusLabel_error {
+  color: #d92d20;
 }
 .confirmButton {
   position: absolute;
@@ -545,6 +709,11 @@ function onDrop(event: DragEvent) {
   background-color: #0053e3;
   width: 350px;
   height: 56px;
+}
+/* 매핑이 끝난 파일이 하나도 없으면 다음 단계로 갈 게 없다. */
+.confirmDisabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 .confirmButtonLabel {
   position: absolute;
