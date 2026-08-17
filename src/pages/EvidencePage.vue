@@ -260,6 +260,17 @@ const RAW_COL = { no: 120, date: 298, site: 518, outlet: 819, value: 1121, limit
 
 const dividers = computed(() => [634, 832, 1176, 2084 + sqlShift.value, 2187 + sqlShift.value])
 
+/** 이 측정값 한 건이 어떻게 판정됐는지 보여주는 화면으로. */
+function openRow(row: AnalysisMeasurement) {
+  router.push({
+    name: 'row-detail',
+    query: {
+      executionId: String(route.query.executionId ?? detail.value?.execution_id ?? ''),
+      measurementId: String(row.measurement_id),
+    },
+  })
+}
+
 function formatDay(iso: string) {
   const at = new Date(iso)
   if (Number.isNaN(at.getTime())) return iso
@@ -436,6 +447,9 @@ onMounted(load)
       <component :is="judge(row).over ? 'b' : 'div'"
                  :class="judge(row).over ? $style.rawVsOver : $style.rawCell"
                  :style="{ top: `${rawTop(i) + (judge(row).over ? 3 : 0)}px`, left: `${RAW_COL.vsOver}px` }">{{ judge(row).text }}</component>
+      <!-- 행 전체를 눌러 이 한 건이 어떻게 판정됐는지로 들어간다 -->
+      <div :class="[$style.rawRowHit, 'row-hit']" role="button"
+           :style="{ top: `${rawTop(i) - 34}px` }" @click="openRow(row)" />
     </template>
 
     <div :class="$style.child18" :style="{ top: `${footerTop}px` }" />
@@ -1054,7 +1068,7 @@ onMounted(load)
 .mapBadgeTextHuman {
   color: #00a26a;
 }
-/* "-" 와 "박서연 08-08 09:40" 이 같은 중심(1199px)에 오도록 넓게 잡고 가운데 정렬 */
+/* 확인자가 없을 때의 "-" 와 이름·시각이 같은 중심(1199px)에 오도록 넓게 잡는다 */
 .mapConfirm {
   position: absolute;
   left: 1057px;
