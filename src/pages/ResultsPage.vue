@@ -1,160 +1,379 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import logo from '../assets/logo.png'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import wordmark from '../assets/wordmark.svg'
+import profileIcon from '../assets/profile.svg'
 import caretDownIcon from '../assets/caret-down.svg'
-import { DEFAULT_THRESHOLD_SET, THRESHOLD_SETS } from '../constants/thresholdSets'
 import { useDesignScale } from '../composables/useDesignScale'
+import { useTermNames } from '../composables/useTermNames'
+import { ApiError, getAnalysis, parseConditions, runAnalysis } from '../api'
+import type { AnalysisRequest, AnalysisResult, Bucket } from '../api'
 
 const DESIGN_WIDTH = 1920
 const BASE_HEIGHT = 2683
 
 const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
+const route = useRoute()
+const { loadTerms, termName } = useTermNames()
 
-// 차트 기하 — Figma 캔버스 좌표 그대로 사용해 축 레이블/월 레이블과 정렬한다.
-const AXIS_ZERO_Y = 1835 // 값 0의 y좌표
-const AXIS_UNIT_Y = 110.125 // 1 mg/L 당 픽셀
-const THRESHOLD = 3.0 // 하천 생활환경기준
+// --- 결과 가져오기 ---
+//
+// GET /analyses/{id} 가 집계 결과까지 준다. 조건 화면에서 바로 넘어온 경우에는
+// 방금 받은 값이 history state 에 실려 있어 왕복을 한 번 아낀다.
+const result = ref<AnalysisResult | null>(null)
+const conditions = ref<AnalysisRequest | null>(null)
+const loading = ref(true)
+const loadError = ref('')
+const rerunning = ref(false)
 
-const monthX = [
-  221.5, 352.5, 488.5, 621.5, 754.5, 890.5,
-  1025.5, 1159.5, 1293.5, 1426.5, 1560.5, 1693.5,
-]
-const monthValue = [
-  1.75, 2.13, 1.86, 2.42, 2.89, 3.41,
-  3.8, 3.18, 2.57, 2.19, 1.86, 1.74,
-]
+function describe(error: unknown, fallback: string) {
+  return error instanceof ApiError &&
+    error.code !== 'HTTP_ERROR' &&
+    error.code !== 'NETWORK_ERROR'
+    ? error.message
+    : fallback
+}
 
-// 월 레이블 상자 폭 — "10월" 도 들어가고 점 중앙에 놓을 수 있는 크기
-const MONTH_LABEL_WIDTH = 60
+async function load() {
+  loading.value = true
+  loadError.value = ''
+  void loadTerms()
+  try {
+    const carried = window.history.state?.analysis as AnalysisResult | undefined
+    if (carried?.series) {
+      result.value = carried
+      conditions.value = (window.history.state?.conditions as AnalysisRequest) ?? null
+      selectFirstItem()
+      return
+    }
+    const executionId = String(route.query.executionId ?? '')
+    if (!executionId) {
+      loadError.value = '볼 분석 결과가 없어요. 분석 조건을 먼저 골라주세요.'
+      return
+    }
+    const detail = await getAnalysis(executionId)
+    result.value = {
+      execution_id: detail.execution_id,
+      assumptions: detail.assumptions ?? [],
+      series: detail.series ?? [],
+      limits: detail.limits ?? [],
+      exceeded_count: detail.exceeded_count,
+      meta: {
+        execution_id: detail.execution_id,
+        dictionary_version: detail.dictionary_version,
+        ruleset_version: detail.ruleset_version,
+        row_count: detail.row_count,
+        elapsed_ms: detail.elapsed_ms,
+        truncated: detail.truncated,
+        generated_sql: detail.generated_sql,
+      },
+    }
+    conditions.value = parseConditions(detail)
+    selectFirstItem()
+  } catch (error) {
+    loadError.value = describe(error, '분석 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요')
+  } finally {
+    loading.value = false
+  }
+}
 
-const toY = (value: number) => AXIS_ZERO_Y - value * AXIS_UNIT_Y
+/** 조건을 바꿔 다시 돌린다. 새 분석이라 이력에 한 줄 더 남는다. */
+async function rerun(overrides: Partial<AnalysisRequest> = {}) {
+  if (!conditions.value || rerunning.value) return
+  rerunning.value = true
+  loadError.value = ''
+  try {
+    const next = { ...conditions.value, ...overrides }
+    const fresh = await runAnalysis(next)
+    result.value = fresh
+    conditions.value = next
+    selectFirstItem()
+  } catch (error) {
+    loadError.value = describe(error, '다시 분석하지 못했어요. 잠시 후 다시 시도해 주세요')
+  } finally {
+    rerunning.value = false
+  }
+}
 
-const points = monthX.map((x, i) => ({
-  x,
-  y: toY(monthValue[i]),
-  over: monthValue[i] > THRESHOLD,
-}))
-const linePath = points.map((p) => `${p.x},${p.y}`).join(' ')
-const gridY = [0, 1, 2, 3, 4].map(toY)
-const thresholdY = toY(THRESHOLD)
+// --- 라벨 ---
 
-// 집계단위 세그먼트 — 선택 하이라이트가 해당 구간으로 이동한다.
-const unit = ref<'월' | '분기' | '연'>('월')
+const BUCKET_LABEL: Record<string, string> = {
+  month: '월별', quarter: '분기별', year: '연도별', none: '기간 전체',
+}
+const METRIC_LABEL: Record<string, string> = {
+  avg: '평균', max: '최대', min: '최소', count: '건수',
+}
+const metricLabel = computed(() => METRIC_LABEL[conditions.value?.metric ?? 'avg'] ?? '')
+const bucketLabel = computed(() => BUCKET_LABEL[conditions.value?.bucket ?? 'none'] ?? '')
+
+// --- 항목 선택 ---
+// series 에 여러 항목이 섞여 올 수 있다. 그래프는 기준선이 항목마다 달라서
+// 한 번에 한 항목만 그린다.
+
+const itemCodes = computed(() => [...new Set((result.value?.series ?? []).map((p) => p.item_code))])
+const selectedItem = ref('')
+
+/** 결과를 받으면 첫 항목을 골라둔다. 비워두면 select 가 빈 칸으로 보인다. */
+function selectFirstItem() {
+  if (!selectedItem.value || !itemCodes.value.includes(selectedItem.value)) {
+    selectedItem.value = itemCodes.value[0] ?? ''
+  }
+}
+const activeItem = computed(() => selectedItem.value || itemCodes.value[0] || '')
+
+const itemSeries = computed(() =>
+  (result.value?.series ?? []).filter((p) => p.item_code === activeItem.value),
+)
+const itemLimit = computed(
+  () => result.value?.limits.find((l) => l.item_code === activeItem.value) ?? null,
+)
+const valueUnit = computed(() => itemSeries.value[0]?.unit ?? itemLimit.value?.unit ?? '')
+
+// --- 차트 ---
+// 원본은 12개월 x 좌표와 0~4 눈금을 박아뒀다. 구간 수와 값 범위가 데이터마다
+// 달라서 축을 계산으로 바꾼다. 그리는 영역은 디자인 좌표 그대로 유지한다.
+
+const PLOT_LEFT = 221
+const PLOT_RIGHT = 1743
+const AXIS_ZERO_Y = 1835
+const PLOT_HEIGHT = 440.5
+const GRID_STEPS = 4
+const MONTH_LABEL_WIDTH = 90
+
+/**
+ * 눈금 간격을 고른다.
+ *
+ * 후보가 성기면 축이 데이터보다 훨씬 커진다 — 1·2·2.5·5 만 쓰면 최대 95.4 인
+ * 데이터에 0~200 축이 잡혀 그래프가 아래쪽에만 눌린다. 사이 값을 더 둔다.
+ */
+const STEP_FACTORS = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 7.5, 8, 10]
+
+function niceStep(raw: number) {
+  if (raw <= 0) return 1
+  const magnitude = 10 ** Math.floor(Math.log10(raw))
+  for (const factor of STEP_FACTORS) {
+    if (factor * magnitude >= raw) return factor * magnitude
+  }
+  return 10 * magnitude
+}
+
+const axisMax = computed(() => {
+  const values = itemSeries.value.map((p) => p.value)
+  const limit = Math.max(itemLimit.value?.limit_max ?? 0, itemLimit.value?.limit_min ?? 0)
+  const peak = Math.max(...values, limit, 0)
+  // 가장 높은 점이 천장에 붙지 않도록 10% 여유를 둔다.
+  return niceStep((peak * 1.1) / GRID_STEPS) * GRID_STEPS
+})
+
+const toY = (value: number) => AXIS_ZERO_Y - (value / axisMax.value) * PLOT_HEIGHT
+const toX = (i: number, total: number) =>
+  total <= 1 ? (PLOT_LEFT + PLOT_RIGHT) / 2 : PLOT_LEFT + (i * (PLOT_RIGHT - PLOT_LEFT)) / (total - 1)
+
+/**
+ * 기준 위반 판정.
+ *
+ * pH 처럼 범위로 규정된 항목은 하한(limit_min)도 있다. 상한만 보면 pH 5.0 같은
+ * 값을 정상으로 표시하게 되는데 서버는 '하한 미달' 로 센다(2026-08-17 확인).
+ */
+function violationOf(value: number) {
+  const limit = itemLimit.value
+  if (!limit) return null
+  if (limit.limit_min !== undefined && value < limit.limit_min) {
+    return { kind: 'under' as const, rate: Math.round(((limit.limit_min - value) / limit.limit_min) * 100) }
+  }
+  if (value > limit.limit_max) {
+    return { kind: 'over' as const, rate: Math.round(((value - limit.limit_max) / limit.limit_max) * 100) }
+  }
+  return null
+}
+
+const points = computed(() =>
+  itemSeries.value.map((p, i) => {
+    const violation = violationOf(p.value)
+    return {
+      x: toX(i, itemSeries.value.length),
+      y: toY(p.value),
+      over: violation !== null,
+      violation,
+      label: p.bucket,
+      value: p.value,
+      n: p.n,
+      missing: p.missing,
+    }
+  }),
+)
+const linePath = computed(() => points.value.map((p) => `${p.x},${p.y}`).join(' '))
+const gridValues = computed(() =>
+  Array.from({ length: GRID_STEPS + 1 }, (_, i) => (axisMax.value / GRID_STEPS) * i),
+)
+const thresholdY = computed(() => (itemLimit.value ? toY(itemLimit.value.limit_max) : null))
+const thresholdMinY = computed(() =>
+  itemLimit.value?.limit_min !== undefined ? toY(itemLimit.value.limit_min) : null,
+)
+
+/** 눈금 라벨 — 정수면 그대로, 아니면 소수 한 자리. */
+const axisText = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1))
+
+// --- 요약 ---
+
+const overPoints = computed(() => points.value.filter((p) => p.over))
+const summaryHead = computed(() => {
+  if (!result.value) return ''
+  const site = conditions.value?.site_names?.length ? conditions.value.site_names.join(', ') : '전체 지점'
+  const limit = itemLimit.value
+  const head = `${site} ${termName(activeItem.value)} ${bucketLabel.value} ${metricLabel.value}`
+  if (!limit) return `${head} · 기준선 없음`
+  const range =
+    limit.limit_min !== undefined
+      ? `${limit.limit_min}~${limit.limit_max}${limit.unit ?? ''}`
+      : `${limit.limit_max}${limit.unit ?? ''}`
+  return `${head}, 기준 ${range} 벗어남 ${overPoints.value.length}구간`
+})
+const summaryNote = computed(() => {
+  if (!result.value) return ''
+  const parts: string[] = []
+  if (overPoints.value.length) {
+    const worst = overPoints.value.reduce((a, b) => ((a.violation?.rate ?? 0) > (b.violation?.rate ?? 0) ? a : b))
+    const how = worst.violation?.kind === 'under' ? '하한 미달' : '상한 초과'
+    parts.push(`${worst.label} ${worst.value}${valueUnit.value} ${how} ${worst.violation?.rate}%`)
+  }
+  if (result.value.assumptions.length) parts.push(...result.value.assumptions)
+  return parts.join(' · ') || '기준을 넘은 구간이 없어요'
+})
+
+// --- 조건 칩 ---
+
+const conditionChips = computed(() => {
+  const c = conditions.value
+  if (!c) return []
+  return [
+    { label: '지점', value: c.site_names?.length ? c.site_names.join(', ') : '전체' },
+    { label: '항목', value: termName(activeItem.value) || '전체' },
+    { label: '기간', value: c.from && c.to ? `${c.from} ~ ${c.to}` : '전체' },
+    { label: '집계', value: `${bucketLabel.value} ${metricLabel.value}` },
+    { label: '기준치', value: c.standard_set ? `${c.standard_set} · ${c.region_grade ?? '-'}` : '없음' },
+  ]
+})
+
+// --- 집계 단위 세그먼트 ---
+// 단위를 바꾸면 조건이 달라진 것이므로 실제로 다시 돌린다.
+
 const UNIT_SEGMENT = {
-  '월': { left: 156, width: 82, radius: '20px 0px 0px 20px' },
-  '분기': { left: 238, width: 100, radius: '0px' },
-  '연': { left: 338, width: 78, radius: '0px 20px 20px 0px' },
+  month: { left: 156, width: 82, radius: '20px 0px 0px 20px', label: '월' },
+  quarter: { left: 238, width: 100, radius: '0px', label: '분기' },
+  year: { left: 338, width: 78, radius: '0px 20px 20px 0px', label: '연' },
 } as const
+const UNIT_KEYS = ['month', 'quarter', 'year'] as const
+const unit = computed<Bucket>(() => (conditions.value?.bucket ?? 'month') as Bucket)
+const segment = computed(() => UNIT_SEGMENT[(unit.value in UNIT_SEGMENT ? unit.value : 'month') as keyof typeof UNIT_SEGMENT])
 
-// 비교 옵션 (그래프 탭)
-const compare = ref('비교 없음')
+function changeBucket(next: Bucket) {
+  if (next === unit.value || rerunning.value || !result.value) return
+  rerun({ bucket: next })
+}
 
-// 표 탭은 같은 비교 옵션을 드롭다운으로 고른다. 그래프 탭 칩과 라벨 문구가
-// 달라서(디자인 그대로) 상태는 따로 둔다.
-const COMPARE_OPTIONS = ['전년 동기 (2024)', '다른 지점', '비교 없음']
-const tableCompare = ref(COMPARE_OPTIONS[0])
+// --- 탭 ---
 
-// 기준 초과 분석 탭의 적용 기준치 세트
-const thresholdSet = ref(DEFAULT_THRESHOLD_SET)
-
-// select 의 기본 화살표를 지우고 디자인의 caret 을 배경으로 깐다. Vite 가
-// data URI 로 인라인한 SVG 에는 작은따옴표가 남아 있어서, 따옴표 없는 url()
-// 토큰으로 두면 CSS 선언이 통째로 버려진다. 반드시 큰따옴표로 감싼다.
 const caret = { backgroundImage: `url("${caretDownIcon}")` }
-
 const activeTab = ref<'graph' | 'table' | 'exceed'>('graph')
-// 탭 하단 인디케이터 — 디자인 좌표 그대로.
 const TAB_UNDERLINE = {
   graph: { left: 50, width: 137 },
   table: { left: 226, width: 137 },
   exceed: { left: 396, width: 180 },
 } as const
 
-// 기준 초과 분석 탭은 표 위에 KPI 카드 한 줄이 들어가면서
-// 표부터 하단 전체가 정확히 298px 내려간다.
 const EXCEED_OFFSET = 298
 const tabOffset = computed(() => (activeTab.value === 'exceed' ? EXCEED_OFFSET : 0))
-const designHeight = computed(() => BASE_HEIGHT + tabOffset.value)
 
-// 기준 초과 분석 탭 KPI 카드
-const kpiCards = [
-  {
-    label: '초과 개월',
-    value: '3',
-    suffix: '/12',
-    accent: true,
-    note: '6월 · 7월 · 8월 - 연속 3개월',
-    cardLeft: 50,
-    cardWidth: 565,
-    textLeft: 101,
-  },
-  {
-    label: '최고 초과율',
-    value: '+27%',
-    suffix: '',
-    accent: true,
-    note: '7월 3.8mg/L (기준 3.0)',
-    cardLeft: 677,
-    cardWidth: 566,
-    textLeft: 729,
-  },
-  {
-    label: '초과 측정 건수',
-    value: '7',
-    suffix: '/46',
-    accent: false,
-    note: '개별 측정값 기준 · 15.2%',
-    cardLeft: 1305,
-    cardWidth: 566,
-    textLeft: 1357,
-  },
-]
+// --- 기준 초과 KPI ---
 
-// 표 결과 탭 — 행/열 좌표는 Figma 캔버스 기준, 행 간격 104px.
+const kpiCards = computed(() => {
+  const total = points.value.length
+  const over = overPoints.value
+  const limit = itemLimit.value
+  const worst = over.length
+    ? over.reduce((a, b) => ((a.violation?.rate ?? 0) > (b.violation?.rate ?? 0) ? a : b))
+    : null
+  const measured = points.value.reduce((sum, p) => sum + p.n, 0)
+  const missing = points.value.reduce((sum, p) => sum + p.missing, 0)
+  const bound = limit?.limit_min !== undefined ? `${limit.limit_min}~${limit.limit_max}` : limit?.limit_max
+
+  return [
+    {
+      label: '기준 벗어남', value: String(over.length), suffix: `/${total}`,
+      accent: over.length > 0,
+      note: over.length ? over.map((p) => p.label).join(' · ') : '기준을 벗어난 구간이 없어요',
+      cardLeft: 50, cardWidth: 565, textLeft: 101,
+    },
+    {
+      label: '최대 이탈률',
+      value: worst ? `${worst.violation?.kind === 'under' ? '-' : '+'}${worst.violation?.rate}%` : '-',
+      suffix: '',
+      accent: over.length > 0,
+      note: worst && limit ? `${worst.label} ${worst.value}${limit.unit ?? ''} (기준 ${bound})` : '해당 없음',
+      cardLeft: 677, cardWidth: 566, textLeft: 729,
+    },
+    {
+      label: '측정 건수', value: String(measured), suffix: '',
+      accent: false,
+      note: `${total}개 구간 합계 · 결측 ${missing}건`,
+      cardLeft: 1305, cardWidth: 566, textLeft: 1357,
+    },
+  ]
+})
+
+// --- 표 ---
+
 const TABLE_ROW_TOP = 1290
 const TABLE_ROW_STEP = 104
-const TABLE_COL = {
-  month: 120,
-  avg: 368,
-  count: 588,
-  range: 819,
-  vsThreshold: 1121,
-  lastYear: 1453,
-  delta: 1673,
-} as const
+const BASE_ROWS = 7
+const TABLE_COL = { bucket: 120, value: 500, count: 850, missing: 1150, vsLimit: 1453 } as const
 
-type TableRow = {
-  month: string
-  avg: string
-  count: string
-  range: string
-  vsThreshold: string
-  lastYear: string
-  delta: string
-  over: boolean
-}
-
-const tableRows: TableRow[] = [
-  { month: '2025-01', avg: '1.8', count: '4', range: '1.5~2.1', vsThreshold: '이내', lastYear: '1.9', delta: '-0.1', over: false },
-  { month: '2025-01', avg: '1.8', count: '4', range: '1.5~2.1', vsThreshold: '이내', lastYear: '1.9', delta: '+0.1', over: false },
-  { month: '2025-01', avg: '1.8', count: '4', range: '1.5~2.1', vsThreshold: '이내', lastYear: '1.9', delta: '-0.3', over: false },
-  { month: '2025-01', avg: '1.8', count: '4', range: '1.5~2.1', vsThreshold: '이내', lastYear: '1.9', delta: '+0.1', over: false },
-  { month: '2025-01', avg: '1.8', count: '4', range: '1.5~2.1', vsThreshold: '이내', lastYear: '1.9', delta: '+0.3', over: false },
-  { month: '2025-01', avg: '1.8', count: '4', range: '1.5~2.1', vsThreshold: '초과 +13%', lastYear: '1.9', delta: '+0.5', over: true },
-  { month: '2025-01', avg: '1.8', count: '4', range: '1.5~2.1', vsThreshold: '초과 +27%', lastYear: '1.9', delta: '+0.7', over: true },
-]
+const tableRows = computed(() =>
+  points.value.map((p) => {
+    const limit = itemLimit.value
+    let vsLimit = '이내'
+    if (!limit) vsLimit = '기준 없음'
+    else if (p.violation?.kind === 'over') vsLimit = `상한 초과 +${p.violation.rate}%`
+    else if (p.violation?.kind === 'under') vsLimit = `하한 미달 -${p.violation.rate}%`
+    return {
+      bucket: p.label,
+      value: String(p.value),
+      count: String(p.n),
+      missing: String(p.missing),
+      vsLimit,
+      over: p.over,
+    }
+  }),
+)
 
 const rowTop = (i: number) => TABLE_ROW_TOP + i * TABLE_ROW_STEP + tabOffset.value
-// 행 구분선은 각 행 아래 70px 지점 (마지막 행 제외).
-const rowDividerTop = computed(() => tableRows.slice(0, -1).map((_, i) => rowTop(i) + 70))
-// 기준 초과 행들을 감싸는 붉은 하이라이트.
-const firstOverRow = tableRows.findIndex((r) => r.over)
-const overHighlight = computed(() => ({
-  top: rowTop(firstOverRow) - 33,
-  height: (tableRows.length - firstOverRow) * TABLE_ROW_STEP,
-}))
+const rowDividerTop = computed(() => tableRows.value.slice(0, -1).map((_, i) => rowTop(i) + 70))
+// 초과 행이 이어져 있을 때만 하이라이트로 묶는다.
+const overHighlight = computed(() => {
+  const first = tableRows.value.findIndex((r) => r.over)
+  if (first === -1) return null
+  const last = tableRows.value.map((r) => r.over).lastIndexOf(true)
+  return { top: rowTop(first) - 33, height: (last - first + 1) * TABLE_ROW_STEP }
+})
+
+// 표가 길어지거나 짧아진 만큼 아래가 밀린다.
+const tableShift = computed(() =>
+  activeTab.value === 'graph' ? 0 : (Math.max(1, tableRows.value.length) - BASE_ROWS) * TABLE_ROW_STEP,
+)
+const designHeight = computed(() => BASE_HEIGHT + tabOffset.value + tableShift.value)
+
+function goToEvidence() {
+  if (!result.value) return
+  const q = String(route.query.q ?? '')
+  router.push({
+    name: 'evidence',
+    query: { executionId: result.value.execution_id, ...(q ? { q } : {}) },
+  })
+}
+
+onMounted(load)
 </script>
 
 <template>
@@ -163,59 +382,35 @@ const overHighlight = computed(() => ({
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
-    <b :class="$style.bod">“작년 인천 지점 BOD 월별 추이 보여줘"</b>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
-      <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
-      <b :class="$style.b2">물</b>
-      <b :class="$style.b3">볼래</b>
-      <b :class="$style.b4">ㅓ</b>
-    </div>
-    <div :class="$style.profile" />
+    <b :class="$style.bod">분석 결과</b>
+    <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
+    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
+
+    <!-- 요약 -->
     <div :class="$style.item" />
-    <b :class="$style.bod25">2025년 인천 지점 BOD 월평균 2.5 mg/L, 기준치 3.0 초과 3개월</b>
-    <div :class="$style.mgl">6 · 7· 8월 연속 초과 · 최고치 7월 3.8mg/L (기준 대비 + 27%)</div>
-    <div :class="$style.div4">초과 개월</div>
-    <div :class="$style.inner" :style="{ top: `${2439 + tabOffset}px` }" />
-    <div :class="$style.rectangleParent">
-      <div :class="$style.groupChild" />
-      <div :class="$style.div5">
-        <span :class="$style.span">지점</span>
-        <span :class="$style.span2">&nbsp;</span>
-        <span :class="$style.span3">인천(한강대교)</span>
+    <b :class="$style.bod25">
+      {{ loading ? '결과를 불러오는 중이에요…' : loadError ? '결과를 볼 수 없어요' : summaryHead }}
+    </b>
+    <div :class="[$style.mgl, loadError && $style.noticeError]">
+      {{ loadError || summaryNote }}
+    </div>
+    <template v-if="result">
+      <div :class="$style.div4">기준 벗어남</div>
+      <b :class="$style.b5">{{ overPoints.length }}/{{ points.length }}</b>
+    </template>
+
+    <div :class="$style.inner" :style="{ top: `${2439 + tabOffset + tableShift}px` }" />
+
+    <!-- 조건 칩 — 원본은 칩마다 폭과 글자 위치를 박아뒀다. 실제 값(긴 용어명,
+         'YYYY-MM-DD ~ YYYY-MM-DD' 기간)이 상자를 넘쳐서 내용에 맞춰 늘어나게 둔다. -->
+    <div v-if="conditions" :class="$style.chipRow">
+      <div v-for="chip in conditionChips" :key="chip.label" :class="$style.conditionChip">
+        <span :class="$style.chipLabel">{{ chip.label }}</span>
+        <b :class="$style.chipValue">{{ chip.value }}</b>
       </div>
     </div>
-    <div :class="$style.rectangleGroup">
-      <div :class="$style.groupItem" />
-      <div :class="$style.div6">
-        <span :class="$style.span">기준치 </span>
-        <span :class="$style.span3">하천 생활환경기준 등급</span>
-      </div>
-    </div>
-    <div :class="$style.rectangleContainer">
-      <div :class="$style.groupChild" />
-      <div :class="$style.div5">
-        <span :class="$style.span">기간</span>
-        <span :class="$style.span2">&nbsp;</span>
-        <span :class="$style.span3">2025-01~12</span>
-      </div>
-    </div>
-    <div :class="$style.groupDiv">
-      <div :class="$style.rectangleDiv" />
-      <div :class="$style.div8">
-        <span :class="$style.span">집계</span>
-        <span :class="$style.span2">&nbsp;</span>
-        <span :class="$style.span3">월별 평균</span>
-      </div>
-    </div>
-    <div :class="$style.rectangleParent2">
-      <div :class="$style.groupChild2" />
-      <div :class="$style.bod2">
-        <span :class="$style.span">항목</span>
-        <span :class="$style.span2">&nbsp;</span>
-        <span :class="$style.span3">BOD</span>
-      </div>
-    </div>
-    <b :class="$style.b5">3/12</b>
+
+    <!-- 탭 -->
     <b :class="[$style.b6, activeTab === 'graph' ? $style.tabActive : $style.tabIdle, 'link']"
        @click="activeTab = 'graph'">추이 그래프</b>
     <b :class="[$style.b7, activeTab === 'table' ? $style.tabActive : $style.tabIdle, 'link']"
@@ -225,76 +420,99 @@ const overHighlight = computed(() => ({
     <div :class="$style.child2" />
     <div :class="$style.child3"
          :style="{ left: `${TAB_UNDERLINE[activeTab].left}px`, width: `${TAB_UNDERLINE[activeTab].width}px` }" />
+
+    <!-- 집계 단위 — 바꾸면 조건이 달라진 것이라 실제로 다시 돌린다 -->
     <b :class="$style.b9">집계단위</b>
-    <b v-if="activeTab === 'exceed'" :class="$style.thresholdSetLabel">기준치 세트</b>
-    <b v-else :class="$style.b10">비교</b>
     <div :class="$style.child4" />
     <div :class="$style.child8" />
     <div :class="$style.child9" :style="{
-      left: `${UNIT_SEGMENT[unit].left}px`,
-      width: `${UNIT_SEGMENT[unit].width}px`,
-      borderRadius: UNIT_SEGMENT[unit].radius,
+      left: `${segment.left}px`, width: `${segment.width}px`, borderRadius: segment.radius,
     }" />
-    <b :class="[$style.b11, 'link']" @click="unit = '월'">월</b>
-    <b :class="[$style.b12, 'link']" @click="unit = '분기'">분기</b>
-    <b :class="[$style.b13, 'link']" @click="unit = '연'">연</b>
-    <!-- 비교 컨트롤: 그래프 탭은 3지 선택, 표 탭은 단일 드롭다운 -->
-    <template v-if="activeTab === 'graph'">
-      <div :class="[$style.child5, compare === '비교 없음' && $style.chipOn]" />
-      <div :class="[$style.child6, compare === '+전년 동기' && $style.chipOn]" />
-      <div :class="[$style.child7, compare === '+다른 지점' && $style.chipOn]" />
-      <b :class="[$style.b14, 'link']" @click="compare = '비교 없음'">비교 없음</b>
-      <b :class="[$style.b15, 'link']" @click="compare = '+전년 동기'">+전년 동기</b>
-      <b :class="[$style.b16, 'link']" @click="compare = '+다른 지점'">+다른 지점</b>
-      <img :class="$style.polygonIcon" :src="caretDownIcon" alt="" />
-    </template>
-    <select v-else-if="activeTab === 'table'" v-model="tableCompare"
-            :class="[$style.tabSelect, $style.compareSelect]" :style="caret" aria-label="비교 옵션">
-      <option v-for="name in COMPARE_OPTIONS" :key="name" :value="name">{{ name }}</option>
+    <b v-for="(key, ui) in UNIT_KEYS" :key="key"
+       :class="[[$style.b11, $style.b12, $style.b13][ui], result ? 'link' : $style.unitOff]"
+       @click="changeBucket(key)">{{ UNIT_SEGMENT[key].label }}</b>
+
+    <!-- 원본의 '비교' 자리 — 서버에 비교 기능이 없다. series 에 여러 항목이 섞여
+         오므로 그래프에 그릴 항목을 고르는 자리로 쓴다. -->
+    <b :class="$style.b10">항목</b>
+    <select v-model="selectedItem" :class="[$style.tabSelect, $style.compareSelect]"
+            :style="caret" aria-label="표시할 측정 항목">
+      <option v-for="code in itemCodes" :key="code" :value="code">{{ termName(code) }}</option>
+      <option v-if="!itemCodes.length" value="">항목 없음</option>
     </select>
-    <select v-else v-model="thresholdSet" :class="[$style.tabSelect, $style.thresholdSelect]"
-            :style="caret" aria-label="적용 기준치 세트">
-      <optgroup v-for="group in THRESHOLD_SETS" :key="group.label" :label="group.label">
-        <option v-for="name in group.options" :key="name" :value="name">{{ name }}</option>
-      </optgroup>
-    </select>
-    <b :class="$style.sql" :style="{ top: `${2209 + tabOffset}px` }">이 숫자가 어떻게 나왔는지 확인할 수 있어요 - 생성된 SQL과 원본 데이터 행</b>
-    <template v-if="activeTab === 'graph'">
-    <div :class="$style.child10" />
-    <b :class="$style.bod4">인천 (한강대교) BOD 월평균 - 2025</b>
-    <b :class="$style.b17">3.4</b>
-    <b :class="$style.b18">3.2</b>
-    <b :class="$style.b19">초과 3개월</b>
-    <b :class="$style.b20">기준 3.0</b>
-    <b :class="$style.b21">3.8</b>
-    <div :class="$style.mgl2">단위 mg/L ·  기준선 3.0 (하천 생활환경기준 등급)</div>
-    <svg :class="$style.chart" viewBox="200 1370 1560 490" role="img"
-         aria-label="인천 한강대교 BOD 월평균 추이 - 2025년, 6·7·8월 기준치 3.0 초과">
-      <g :class="$style.grid">
-        <line v-for="y in gridY" :key="y" :x1="221" :x2="1743" :y1="y" :y2="y" />
-      </g>
-      <line :class="$style.thresholdLine" :x1="221" :x2="1743" :y1="thresholdY" :y2="thresholdY" />
-      <polyline :class="$style.trendLine" :points="linePath" />
-      <circle v-for="(p, i) in points" :key="i" :cx="p.x" :cy="p.y" r="12.5"
-              :class="p.over ? $style.dotOver : $style.dot" />
-    </svg>
-    <div v-for="(x, i) in monthX" :key="i" :class="$style.monthLabel"
-         :style="{ left: `${x - MONTH_LABEL_WIDTH / 2}px` }">{{ i + 1 }}월</div>
-    <div :class="$style.div10">0</div>
-    <div :class="$style.div11">1</div>
-    <div :class="$style.div12">2</div>
-    <div :class="$style.div13">3</div>
-    <div :class="$style.div14">4</div>
-    <div :class="$style.child37" />
-    <div :class="$style.child38" />
-    <div :class="$style.child39" />
-    <b :class="$style.bod5">BOD 월평균 </b>
-    <b :class="$style.mgl3">기준치 3.0 mg/L</b>
-    <b :class="$style.b22">기준 초과 (값 직접 표기)</b>
-    <b :class="$style.b23">점 위에 마우스를 올리면 측정 건수/결측 여부가 표시됩니다</b>
+
+    <b :class="$style.sql" :style="{ top: `${2209 + tabOffset + tableShift}px` }">이 숫자가 어떻게 나왔는지 확인할 수 있어요 - 생성된 SQL과 원본 데이터 행</b>
+
+    <!-- 결과가 없으면 탭 내용 대신 한 줄로 알린다 -->
+    <template v-if="!result">
+      <div :class="$style.child10" />
+      <div :class="[$style.emptyNotice, loadError && $style.noticeError]">
+        {{ loading ? '결과를 불러오는 중이에요…' : loadError || '집계된 구간이 없어요.' }}
+      </div>
     </template>
 
-    <!-- 표 결과 / 기준 초과 분석 탭 — 같은 표를 쓰고, 초과 분석 탭에만 KPI 카드가 얹힌다 -->
+    <template v-else-if="activeTab === 'graph'">
+      <div :class="$style.child10" />
+      <!-- 조건은 멀쩡한데 걸린 값이 없을 때. 대개 기간이 데이터 밖이다. -->
+      <div v-if="!points.length" :class="$style.emptyNotice">
+        이 조건에 맞는 측정값이 없어요.
+        <template v-if="conditions?.from && conditions?.to">
+          기간을 {{ conditions.from }} ~ {{ conditions.to }} 로 두었는데 그 사이 데이터가 없습니다.
+        </template>
+      </div>
+      <b :class="$style.bod4">{{ conditionChips[0].value }} {{ termName(activeItem) }} {{ bucketLabel }} {{ metricLabel }}</b>
+      <div :class="$style.mgl2">
+        단위 {{ valueUnit || '-' }}
+        <template v-if="itemLimit">
+          · 기준
+          <template v-if="itemLimit.limit_min !== undefined">{{ itemLimit.limit_min }}~</template>{{ itemLimit.limit_max }}
+          ({{ conditions?.standard_set }} {{ conditions?.region_grade }})
+        </template>
+        <template v-else> · 기준선 없음</template>
+      </div>
+      <b v-if="overPoints.length" :class="$style.b19">기준 벗어남 {{ overPoints.length }}구간</b>
+      <b v-if="itemLimit && thresholdY !== null" :class="$style.b20"
+         :style="{ top: `${thresholdY - 52}px` }">상한 {{ itemLimit.limit_max }}</b>
+      <b v-if="itemLimit && thresholdMinY !== null" :class="$style.b20"
+         :style="{ top: `${thresholdMinY - 52}px` }">하한 {{ itemLimit.limit_min }}</b>
+
+      <svg :class="$style.chart" viewBox="200 1370 1560 490" role="img"
+           :aria-label="`${termName(activeItem)} ${bucketLabel} ${metricLabel} 추이, 기준 벗어남 ${overPoints.length}구간`">
+        <g :class="$style.grid">
+          <line v-for="v in gridValues" :key="v" :x1="221" :x2="1743" :y1="toY(v)" :y2="toY(v)" />
+        </g>
+        <line v-if="thresholdY !== null" :class="$style.thresholdLine"
+              :x1="221" :x2="1743" :y1="thresholdY" :y2="thresholdY" />
+        <line v-if="thresholdMinY !== null" :class="$style.thresholdLine"
+              :x1="221" :x2="1743" :y1="thresholdMinY" :y2="thresholdMinY" />
+        <polyline v-if="points.length > 1" :class="$style.trendLine" :points="linePath" />
+        <circle v-for="(p, i) in points" :key="i" :cx="p.x" :cy="p.y" r="12.5"
+                :class="p.over ? $style.dotOver : $style.dot" />
+        <text v-for="(p, i) in points.filter((q) => q.over)" :key="`t${i}`"
+              :x="p.x" :y="p.y - 24" :class="$style.dotValue" text-anchor="middle">{{ p.value }}</text>
+      </svg>
+
+      <div v-for="(p, i) in points" :key="`m${i}`" :class="$style.monthLabel"
+           :style="{ left: `${p.x - MONTH_LABEL_WIDTH / 2}px`, width: `${MONTH_LABEL_WIDTH}px` }">{{ p.label }}</div>
+      <div v-for="v in gridValues" :key="`y${v}`" :class="$style.axisLabel"
+           :style="{ top: `${toY(v) - 22}px` }">{{ axisText(v) }}</div>
+
+      <div :class="$style.child38" />
+      <b :class="$style.bod5">{{ termName(activeItem) }} {{ metricLabel }}</b>
+      <template v-if="itemLimit">
+        <div :class="$style.child39" />
+        <b :class="$style.mgl3">
+          기준치
+          <template v-if="itemLimit.limit_min !== undefined">{{ itemLimit.limit_min }}~</template>{{ itemLimit.limit_max }}
+          {{ itemLimit.unit ?? '' }}
+        </b>
+        <div :class="$style.child37" />
+        <b :class="$style.b22">기준 벗어남 (값 직접 표기)</b>
+      </template>
+      <b :class="$style.b23">{{ result.meta.row_count }}행 · {{ result.meta.elapsed_ms }}ms · 사전 {{ result.meta.dictionary_version }}</b>
+    </template>
+
+    <!-- 표 결과 / 기준 초과 분석 -->
     <template v-else>
       <template v-if="activeTab === 'exceed'">
         <template v-for="card in kpiCards" :key="card.label">
@@ -307,38 +525,37 @@ const overHighlight = computed(() => ({
         </template>
       </template>
 
-      <div :class="$style.tableCard" :style="{ top: `${1150 + tabOffset}px` }" />
+      <div :class="$style.tableCard"
+           :style="{ top: `${1150 + tabOffset}px`, height: `${99 + Math.max(1, tableRows.length) * 104 + 10}px` }" />
       <div :class="$style.tableHeaderBg" :style="{ top: `${1150 + tabOffset}px` }" />
-      <div :class="$style.tableOverHighlight"
+      <div v-if="overHighlight" :class="$style.tableOverHighlight"
            :style="{ top: `${overHighlight.top}px`, height: `${overHighlight.height}px` }" />
       <div v-for="top in rowDividerTop" :key="top" :class="$style.tableDivider" :style="{ top: `${top}px` }" />
 
-      <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.month}px` }">월</b>
-      <b :class="$style.tableHead" :style="{ top: `${1170 + tabOffset}px`, left: `${TABLE_COL.avg}px` }">BOD 평균<br/>(mg/L)</b>
+      <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.bucket}px` }">구간</b>
+      <b :class="$style.tableHead" :style="{ top: `${1170 + tabOffset}px`, left: `${TABLE_COL.value}px` }">{{ metricLabel }}<br/>({{ valueUnit || '-' }})</b>
       <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.count}px` }">측정 건수</b>
-      <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.range}px` }">최소 ~ 최대</b>
-      <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.vsThreshold}px` }">기준(3.0)대비</b>
-      <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.lastYear}px` }">2024 동월</b>
-      <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.delta}px` }">증감</b>
+      <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.missing}px` }">결측</b>
+      <b :class="$style.tableHead" :style="{ top: `${1185 + tabOffset}px`, left: `${TABLE_COL.vsLimit}px` }">기준 대비</b>
 
+      <div v-if="!tableRows.length" :class="$style.emptyRow" :style="{ top: `${rowTop(0)}px` }">
+        집계된 구간이 없어요.
+      </div>
       <template v-for="(row, i) in tableRows" :key="i">
-        <b :class="$style.tableMonth" :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.month}px` }">{{ row.month }}</b>
-        <div :class="$style.tableCell" :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.avg}px` }">{{ row.avg }}</div>
+        <b :class="$style.tableMonth" :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.bucket}px` }">{{ row.bucket }}</b>
+        <div :class="$style.tableCell" :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.value}px` }">{{ row.value }}</div>
         <div :class="$style.tableCell" :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.count}px` }">{{ row.count }}</div>
-        <div :class="$style.tableCell" :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.range}px` }">{{ row.range }}</div>
+        <div :class="$style.tableCell" :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.missing}px` }">{{ row.missing }}</div>
         <component :is="row.over ? 'b' : 'div'"
                    :class="row.over ? $style.tableCellOver : $style.tableCell"
-                   :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.vsThreshold}px` }">{{ row.vsThreshold }}</component>
-        <div :class="$style.tableCell" :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.lastYear}px` }">{{ row.lastYear }}</div>
-        <b :class="row.delta.startsWith('-') ? $style.tableDeltaDown : $style.tableDeltaUp"
-           :style="{ top: `${rowTop(i) + 3}px`, left: `${TABLE_COL.delta}px` }">{{ row.delta }}</b>
+                   :style="{ top: `${rowTop(i)}px`, left: `${TABLE_COL.vsLimit}px` }">{{ row.vsLimit }}</component>
       </template>
     </template>
 
-    <div :class="$style.child40" :style="{ top: `${2132 + tabOffset}px` }" />
-    <div :class="[$style.rectangleParent3, 'btn']" role="button"
-         :style="{ top: `${2201 + tabOffset}px` }" @click="router.push('/evidence')">
-      <div :class="[$style.groupChild3, 'btn-fill']" />
+    <div :class="$style.child40" :style="{ top: `${2132 + tabOffset + tableShift}px` }" />
+    <div :class="[$style.rectangleParent3, result ? 'btn' : $style.rerunOff]" role="button"
+         :style="{ top: `${2201 + tabOffset + tableShift}px` }" @click="result && goToEvidence()">
+      <div :class="[$style.groupChild3, result && 'btn-fill']" />
       <b :class="$style.b24">근거 상세 보기 →</b>
     </div>
     <div :class="[$style.div26, 'link']" @click="router.push('/conditions')">←</div>
@@ -347,6 +564,93 @@ const overHighlight = computed(() => ({
 </template>
 
 <style module>
+/* y축 눈금 라벨 — 값 범위가 데이터마다 달라 좌표를 계산해 붙인다. */
+.axisLabel {
+  position: absolute;
+  left: 140px;
+  width: 62px;
+  text-align: right;
+  line-height: 45px;
+  font-weight: 500;
+}
+/* 기준을 넘은 점 위에 값 직접 표기 */
+.dotValue {
+  fill: #ff0000;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: Pretendard;
+}
+/* 결과가 아직 없을 때 그래프 카드 안에 뜨는 한 줄 */
+.emptyNotice {
+  position: absolute;
+  top: 1560px;
+  left: 0px;
+  width: 1920px;
+  text-align: center;
+  line-height: 45px;
+  font-weight: 500;
+}
+.emptyRow {
+  position: absolute;
+  left: 120px;
+  line-height: 45px;
+  font-weight: 500;
+}
+.noticeError {
+  color: #d92d20;
+}
+.rerunOff {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+/* 결과가 없으면 집계 단위를 바꿔봐야 돌릴 게 없다. */
+.unitOff {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+/* 조건 칩 줄 — 원본 첫 칩 위치(93, 373)에서 시작해 내용만큼 늘어난다. */
+.chipRow {
+  position: absolute;
+  top: 373px;
+  left: 93px;
+  width: 1740px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: var(--font-body-03);
+  color: #455772;
+}
+.conditionChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 54px;
+  padding: 0 28px;
+  box-sizing: border-box;
+  border-radius: 30px;
+  background-color: #fff;
+  border: 2px solid #d0d0d0;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.chipLabel {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+.chipValue {
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 서비스 워드로고. 원래는 물방울 아이콘 위에 '물 / 볼래 / ㅓ' 글자를 겹쳐 만들었는데,
+   Ria Sans 가 설치되지 않은 환경에서는 글자 폭이 달라져 어긋난다. 한 장으로 바꾼다. */
+.wordmark {
+  position: absolute;
+  top: 82px;
+  left: 50px;
+  width: 144px;
+  height: 35px;
+}
 .viewport {
   width: 100%;
   overflow: hidden;
@@ -399,41 +703,10 @@ const overHighlight = computed(() => ({
   font-size: var(--font-title-02);
   color: #0053e3;
 }
-.caAaca4862A5402b585a54a82eParent {
-  position: absolute;
-  top: 82px;
-  left: 50px;
-  width: 144px;
-  height: 35px;
-  text-align: center;
-  font-size: var(--font-body-01);
-  color: #0053e3;
-  font-family: 'Ria Sans';
-}
-.caAaca4862A5402b585a54a82eIcon {
-  position: absolute;
-  top: 3px;
-  left: 32px;
-  width: 23px;
-  height: 29px;
-  object-fit: cover;
-}
 .b2 {
   position: absolute;
   top: 0px;
   left: 0px;
-  line-height: 35px;
-}
-.b3 {
-  position: absolute;
-  top: 0px;
-  left: 81px;
-  line-height: 35px;
-}
-.b4 {
-  position: absolute;
-  top: 0px;
-  left: 51px;
   line-height: 35px;
 }
 /* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
@@ -442,7 +715,6 @@ const overHighlight = computed(() => ({
   top: 76px;
   left: 1822px;
   border-radius: 50%;
-  background-color: #d9d9d9;
   width: 48px;
   height: 48px;
 }
@@ -485,133 +757,6 @@ const overHighlight = computed(() => ({
   background-color: #f3f3f3;
   width: 2120px;
   height: 244px;
-}
-.rectangleParent {
-  position: absolute;
-  top: 373px;
-  left: 93px;
-  width: 363px;
-  height: 54px;
-  font-size: var(--font-body-03);
-  color: #455772;
-}
-.groupChild {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  border-radius: 30px;
-  background-color: #fff;
-  border: 2px solid #d0d0d0;
-  box-sizing: border-box;
-  width: 363px;
-  height: 54px;
-}
-.div5 {
-  position: absolute;
-  top: 4px;
-  left: 89px;
-  line-height: 45px;
-}
-.span {
-  line-height: 45px;
-}
-.span2 {
-  font-weight: 300;
-  line-height: 45px;
-}
-.span3 {
-  font-weight: 800;
-  line-height: 45px;
-}
-.rectangleGroup {
-  position: absolute;
-  top: 453px;
-  left: 93px;
-  width: 443px;
-  height: 54px;
-  text-align: center;
-  font-size: var(--font-body-03);
-  color: #455772;
-}
-.groupItem {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  border-radius: 30px;
-  background-color: #fff;
-  border: 2px solid #d0d0d0;
-  box-sizing: border-box;
-  width: 443px;
-  height: 54px;
-}
-.div6 {
-  position: absolute;
-  top: 4px;
-  left: 31px;
-  line-height: 45px;
-  display: inline-block;
-  width: 381px;
-}
-.rectangleContainer {
-  position: absolute;
-  top: 373px;
-  left: 674px;
-  width: 363px;
-  height: 54px;
-  font-size: var(--font-body-03);
-  color: #455772;
-}
-.groupDiv {
-  position: absolute;
-  top: 373px;
-  left: 1051px;
-  width: 228px;
-  height: 54px;
-  font-size: var(--font-body-03);
-  color: #455772;
-}
-.rectangleDiv {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  border-radius: 30px;
-  background-color: #fff;
-  border: 2px solid #d0d0d0;
-  box-sizing: border-box;
-  width: 228px;
-  height: 54px;
-}
-.div8 {
-  position: absolute;
-  top: 4px;
-  left: 49px;
-  line-height: 45px;
-}
-.rectangleParent2 {
-  position: absolute;
-  top: 373px;
-  left: 470px;
-  width: 190px;
-  height: 54px;
-  font-size: var(--font-body-03);
-  color: #455772;
-}
-.groupChild2 {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  border-radius: 30px;
-  background-color: #fff;
-  border: 2px solid #d0d0d0;
-  box-sizing: border-box;
-  width: 190px;
-  height: 54px;
-}
-.bod2 {
-  position: absolute;
-  top: 4px;
-  left: 48px;
-  line-height: 45px;
 }
 .b5 {
   position: absolute;
@@ -1007,8 +1152,7 @@ const overHighlight = computed(() => ({
 }
 .b20 {
   position: absolute;
-  top: 1459px;
-  left: 1655px;
+  left: 1560px;
   line-height: 45px;
   color: #9ca3af;
 }

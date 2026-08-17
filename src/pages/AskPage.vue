@@ -1,25 +1,122 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import logo from "../assets/logo.png";
+import wordmark from "../assets/wordmark.svg";
+import profileIcon from "../assets/profile.svg";
 import searchIcon from "../assets/search.png";
 import { useDesignScale } from "../composables/useDesignScale";
+import { useTermNames } from "../composables/useTermNames";
+import { listAnalyses, parseConditions } from "../api";
+import type { AnalysisHistoryItem } from "../api";
 
 const DESIGN_WIDTH = 1920;
 const DESIGN_HEIGHT = 2181;
 
 const { scale, offsetX } = useDesignScale(DESIGN_WIDTH);
 const router = useRouter();
+const { loadTerms, termName } = useTermNames();
 
 const PLACEHOLDER = "예: 낙동강 BOD 지난 1년 월별 평균을 보여줘";
 const query = ref("");
 const canSubmit = computed(() => query.value.trim().length > 0);
 
-// 질문이 비어 있으면 다음 단계로 넘기지 않는다.
+// 자연어를 해석하는 API 가 없어서 질문은 조건 화면으로 넘겨 보여주기만 한다.
+// 실제 조건은 거기서 직접 고른다.
 function submit() {
   if (!canSubmit.value) return;
-  router.push("/conditions");
+  router.push({ name: "conditions", query: { q: query.value.trim() } });
 }
+
+// 템플릿 — 조건 화면의 집계 단위·방식을 미리 채워서 연다.
+const templates = [
+  { title: "월별 항목 추세 분석", bucket: "월별", metric: "평균" },
+  { title: "기준 초과 구간 탐지", bucket: "월별", metric: "최대" },
+  { title: "전년 동기 대비 분석", bucket: "연별", metric: "평균" },
+];
+function useTemplate(index: number) {
+  const preset = templates[index];
+  router.push({
+    name: "conditions",
+    query: { q: preset.title, unit: preset.bucket, metric: preset.metric },
+  });
+}
+
+// --- 최근 분석 기록 ---
+
+const historyLoading = ref(true);
+const historyError = ref("");
+const history = ref<AnalysisHistoryItem[]>([]);
+
+const BUCKET_LABEL: Record<string, string> = {
+  month: "월별",
+  quarter: "분기별",
+  year: "연도별",
+  none: "기간 전체",
+};
+const METRIC_LABEL: Record<string, string> = {
+  avg: "평균",
+  max: "최대",
+  min: "최소",
+  count: "건수",
+};
+
+/** '2026-08-16T20:32:33' → '2026.08.16 20:32 실행' */
+function formatRanAt(iso: string) {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "-";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${at.getFullYear()}.${pad(at.getMonth() + 1)}.${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())} 실행`;
+}
+
+/** 저장된 조건을 한 줄 제목으로 푼다. */
+function titleOf(item: AnalysisHistoryItem) {
+  const c = parseConditions(item);
+  const sites = c.site_names?.length ? c.site_names.join(", ") : "전체 지점";
+  const items = c.item_codes?.length ? c.item_codes.map(termName).join(", ") : "전체 항목";
+  const bucket = BUCKET_LABEL[c.bucket ?? "none"] ?? "";
+  const metric = METRIC_LABEL[c.metric ?? "avg"] ?? "";
+  const period = c.from && c.to ? ` (${c.from} ~ ${c.to})` : "";
+  return `${sites} · ${items} ${bucket} ${metric}${period}`;
+}
+
+const historyCards = computed(() =>
+  history.value.slice(0, 4).map((item) => ({
+    id: item.execution_id,
+    title: titleOf(item),
+    // 5000행에서 잘렸으면 '집계 완료' 라고 하면 안 된다.
+    badge: item.truncated ? "일부만 집계" : "집계 완료",
+    truncated: item.truncated,
+    ruleset: item.ruleset_version,
+    ranAt: formatRanAt(item.ran_at),
+  })),
+);
+
+async function loadHistory() {
+  historyLoading.value = true;
+  historyError.value = "";
+  try {
+    await loadTerms();
+    const page = await listAnalyses({ size: 4 });
+    history.value = page.items;
+  } catch {
+    historyError.value = "최근 분석 기록을 불러오지 못했어요";
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
+function openResult(executionId: string) {
+  router.push({ name: "results", query: { executionId } });
+}
+
+// 기록 카드 좌표 — 첫 카드가 956px, 이후 155px 간격.
+const HISTORY_STEP = 155;
+const cardTop = (i: number) => 956 + i * HISTORY_STEP;
+const titleTop = (i: number) => 979 + i * HISTORY_STEP;
+const chipTop = (i: number) => 1024 + i * HISTORY_STEP;
+const buttonTop = (i: number) => 996 + i * HISTORY_STEP;
+
+onMounted(loadHistory);
 </script>
 
 <template>
@@ -87,106 +184,38 @@ function submit() {
         <div :class="[$style.rectangleDiv, 'btn-fill']" />
         <div :class="$style.do">금강 DO 전년 동기 대비 비교</div>
       </div>
-      <div
-        :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']"
-        @click="router.push('/')"
-      >
-        <img
-          :class="$style.caAaca4862A5402b585a54a82eIcon"
-          :src="logo"
-          alt="로고"
-        />
-        <b :class="$style.b5">물</b>
-        <b :class="$style.b6">볼래</b>
-        <b :class="$style.b7">ㅓ</b>
-      </div>
-      <div :class="$style.profile" />
+      <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
+      <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
       <b :class="$style.b8">최근 분석 기록</b>
       <div :class="$style.div4">전체 기록 보기 →</div>
-      <div :class="$style.inner" />
-      <div :class="$style.child2" />
-      <div :class="$style.child3" />
-      <div :class="$style.child4" />
-      <b :class="$style.bod">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
-      <b :class="$style.bod2">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
-      <b :class="$style.bod3">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
-      <b :class="$style.bod4">낙동강 BOD 월별 평균 추세 (2023.01~2023.12)</b>
-      <div :class="$style.inner2">
-        <div :class="$style.rectangleParent2">
-          <div :class="$style.groupChild2" />
-          <b :class="$style.b9">집계 완료</b>
-        </div>
-      </div>
-      <div :class="$style.inner3">
-        <div :class="$style.rectangleParent2">
-          <div :class="$style.groupChild2" />
-          <b :class="$style.b9">집계 완료</b>
-        </div>
-      </div>
-      <div :class="$style.inner4">
-        <div :class="$style.rectangleParent2">
-          <div :class="$style.groupChild2" />
-          <b :class="$style.b9">집계 완료</b>
-        </div>
-      </div>
-      <div :class="$style.inner5">
-        <div :class="$style.rectangleParent2">
-          <div :class="$style.groupChild2" />
-          <b :class="$style.b9">집계 완료</b>
-        </div>
-      </div>
-      <div :class="$style.rectangleParent6">
-        <div :class="$style.groupChild6" />
-        <b :class="$style.v241">규칙 v2.4.1</b>
-      </div>
-      <div :class="$style.rectangleParent7">
-        <div :class="$style.groupChild6" />
-        <b :class="$style.v241">규칙 v2.4.1</b>
-      </div>
-      <div :class="$style.rectangleParent8">
-        <div :class="$style.groupChild6" />
-        <b :class="$style.v241">규칙 v2.4.1</b>
-      </div>
-      <div :class="$style.rectangleParent9">
-        <div :class="$style.groupChild6" />
-        <b :class="$style.v241">규칙 v2.4.1</b>
-      </div>
-      <div :class="$style.div5">2024.06.10 14:32 실행</div>
-      <div :class="$style.div6">2024.06.10 14:32 실행</div>
-      <div :class="$style.div7">2024.06.10 14:32 실행</div>
-      <div :class="$style.div8">2024.06.10 14:32 실행</div>
       <div
-        :class="[$style.rectangleParent10, 'btn']"
-        role="button"
-        @click="router.push('/results')"
+        v-if="historyLoading || historyError || !historyCards.length"
+        :class="[$style.historyNotice, historyError && $style.historyNoticeError]"
       >
-        <div :class="[$style.groupChild10, 'btn-fill']" />
-        <b :class="$style.b13">결과 보기</b>
+        {{
+          historyLoading
+            ? "최근 분석 기록을 불러오는 중이에요…"
+            : historyError || "아직 분석한 기록이 없어요. 위에서 질문해 보세요."
+        }}
       </div>
-      <div
-        :class="[$style.rectangleParent11, 'btn']"
-        role="button"
-        @click="router.push('/results')"
-      >
-        <div :class="[$style.groupChild10, 'btn-fill']" />
-        <b :class="$style.b13">결과 보기</b>
-      </div>
-      <div
-        :class="[$style.rectangleParent12, 'btn']"
-        role="button"
-        @click="router.push('/results')"
-      >
-        <div :class="[$style.groupChild10, 'btn-fill']" />
-        <b :class="$style.b13">결과 보기</b>
-      </div>
-      <div
-        :class="[$style.rectangleParent13, 'btn']"
-        role="button"
-        @click="router.push('/results')"
-      >
-        <div :class="[$style.groupChild10, 'btn-fill']" />
-        <b :class="$style.b13">결과 보기</b>
-      </div>
+      <template v-for="(card, i) in historyCards" :key="card.id">
+        <div :class="$style.historyCard" :style="{ top: `${cardTop(i)}px` }" />
+        <b :class="$style.historyTitle" :style="{ top: `${titleTop(i)}px` }">{{ card.title }}</b>
+        <div :class="$style.historyMeta" :style="{ top: `${chipTop(i)}px` }">
+          <b :class="[$style.metaBadge, card.truncated && $style.metaBadgeWarn]">{{ card.badge }}</b>
+          <b :class="$style.metaRuleset">{{ card.ruleset }}</b>
+          <span :class="$style.metaRanAt">{{ card.ranAt }}</span>
+        </div>
+        <div
+          :class="[$style.historyButton, 'btn']"
+          role="button"
+          :style="{ top: `${buttonTop(i)}px` }"
+          @click="openResult(card.id)"
+        >
+          <div :class="[$style.groupChild10, 'btn-fill']" />
+          <b :class="$style.b13">결과 보기</b>
+        </div>
+      </template>
       <div :class="$style.child5" />
       <img :class="$style.vectorIcon" alt="" />
       <img :class="$style.child6" alt="" />
@@ -200,7 +229,7 @@ function submit() {
       <div
         :class="[$style.rectangleParent14, 'btn']"
         role="button"
-        @click="router.push('/conditions')"
+        @click="useTemplate(0)"
       >
         <div :class="[$style.groupChild14, 'btn-fill']" />
         <b :class="$style.b9">사용</b>
@@ -208,7 +237,7 @@ function submit() {
       <div
         :class="[$style.rectangleParent15, 'btn']"
         role="button"
-        @click="router.push('/conditions')"
+        @click="useTemplate(1)"
       >
         <div :class="[$style.groupChild14, 'btn-fill']" />
         <b :class="$style.b9">사용</b>
@@ -216,7 +245,7 @@ function submit() {
       <div
         :class="[$style.rectangleParent16, 'btn']"
         role="button"
-        @click="router.push('/conditions')"
+        @click="useTemplate(2)"
       >
         <div :class="[$style.groupChild14, 'btn-fill']" />
         <b :class="$style.b9">사용</b>
@@ -234,6 +263,15 @@ function submit() {
 </template>
 
 <style module>
+/* 서비스 워드로고. 원래는 물방울 아이콘 위에 '물 / 볼래 / ㅓ' 글자를 겹쳐 만들었는데,
+   Ria Sans 가 설치되지 않은 환경에서는 글자 폭이 달라져 어긋난다. 한 장으로 바꾼다. */
+.wordmark {
+  position: absolute;
+  top: 82px;
+  left: 50px;
+  width: 144px;
+  height: 35px;
+}
 .viewport {
   width: 100%;
   overflow: hidden;
@@ -483,51 +521,12 @@ function submit() {
   width: 226px;
   height: 45px;
 }
-.caAaca4862A5402b585a54a82eParent {
-  position: absolute;
-  top: 82px;
-  left: 50px;
-  width: 144px;
-  height: 35px;
-  flex-shrink: 0;
-  text-align: center;
-  font-size: var(--font-body-01);
-  color: #0053e3;
-  font-family: "Ria Sans";
-}
-.caAaca4862A5402b585a54a82eIcon {
-  position: absolute;
-  top: 3px;
-  left: 32px;
-  width: 23px;
-  height: 29px;
-  object-fit: cover;
-}
-.b5 {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  line-height: 35px;
-}
-.b6 {
-  position: absolute;
-  top: 0px;
-  left: 81px;
-  line-height: 35px;
-}
-.b7 {
-  position: absolute;
-  top: 0px;
-  left: 51px;
-  line-height: 35px;
-}
 /* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
 .profile {
   position: absolute;
   top: 76px;
   left: 1822px;
   border-radius: 50%;
-  background-color: #d9d9d9;
   width: 48px;
   height: 48px;
   flex-shrink: 0;
@@ -550,241 +549,6 @@ function submit() {
   color: #0053e3;
   flex-shrink: 0;
 }
-.inner {
-  position: absolute;
-  top: 956px;
-  left: 184px;
-  box-shadow: 2px 2px 10px 1px rgba(179, 179, 179, 0.2);
-  border-radius: 20px;
-  background-color: #fff;
-  border: 2px solid #e6e7eb;
-  box-sizing: border-box;
-  width: 1002px;
-  height: 135px;
-  flex-shrink: 0;
-}
-.child2 {
-  position: absolute;
-  top: 1111px;
-  left: 184px;
-  box-shadow: 2px 2px 10px 1px rgba(179, 179, 179, 0.2);
-  border-radius: 20px;
-  background-color: #fff;
-  border: 2px solid #e6e7eb;
-  box-sizing: border-box;
-  width: 1002px;
-  height: 135px;
-  flex-shrink: 0;
-}
-.child3 {
-  position: absolute;
-  top: 1266px;
-  left: 184px;
-  box-shadow: 2px 2px 10px 1px rgba(179, 179, 179, 0.2);
-  border-radius: 20px;
-  background-color: #fff;
-  border: 2px solid #e6e7eb;
-  box-sizing: border-box;
-  width: 1002px;
-  height: 135px;
-  flex-shrink: 0;
-}
-.child4 {
-  position: absolute;
-  top: 1421px;
-  left: 184px;
-  box-shadow: 2px 2px 10px 1px rgba(179, 179, 179, 0.2);
-  border-radius: 20px;
-  background-color: #fff;
-  border: 2px solid #e6e7eb;
-  box-sizing: border-box;
-  width: 1002px;
-  height: 135px;
-  flex-shrink: 0;
-}
-.bod {
-  position: absolute;
-  top: 979px;
-  left: 226px;
-  line-height: 45px;
-  color: #1f2937;
-  flex-shrink: 0;
-}
-.bod2 {
-  position: absolute;
-  top: 1134px;
-  left: 226px;
-  line-height: 45px;
-  color: #1f2937;
-  flex-shrink: 0;
-}
-.bod3 {
-  position: absolute;
-  top: 1289px;
-  left: 226px;
-  line-height: 45px;
-  color: #1f2937;
-  flex-shrink: 0;
-}
-.bod4 {
-  position: absolute;
-  top: 1444px;
-  left: 226px;
-  line-height: 45px;
-  color: #1f2937;
-  flex-shrink: 0;
-}
-.inner2 {
-  position: absolute;
-  top: 1024px;
-  left: 226px;
-  width: 116px;
-  height: 45px;
-  flex-shrink: 0;
-  color: #00a26a;
-}
-.rectangleParent2 {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  width: 116px;
-  height: 45px;
-}
-.groupChild2 {
-  position: absolute;
-  top: 4px;
-  left: 0px;
-  border-radius: 10px;
-  background-color: #e2f8f0;
-  width: 116px;
-  height: 37px;
-}
-.b9 {
-  position: absolute;
-  top: 0px;
-  left: 21px;
-  line-height: 45px;
-}
-.inner3 {
-  position: absolute;
-  top: 1179px;
-  left: 226px;
-  width: 116px;
-  height: 45px;
-  flex-shrink: 0;
-  color: #00a26a;
-}
-.inner4 {
-  position: absolute;
-  top: 1334px;
-  left: 226px;
-  width: 116px;
-  height: 45px;
-  flex-shrink: 0;
-  color: #00a26a;
-}
-.inner5 {
-  position: absolute;
-  top: 1489px;
-  left: 226px;
-  width: 116px;
-  height: 45px;
-  flex-shrink: 0;
-  color: #00a26a;
-}
-.rectangleParent6 {
-  position: absolute;
-  top: 1024px;
-  left: 352px;
-  width: 139px;
-  height: 45px;
-  flex-shrink: 0;
-}
-.groupChild6 {
-  position: absolute;
-  top: 4px;
-  left: 0px;
-  border-radius: 10px;
-  background-color: #f1f7ff;
-  border: 1px solid #d6e8fa;
-  box-sizing: border-box;
-  width: 139px;
-  height: 37px;
-}
-.v241 {
-  position: absolute;
-  top: 0px;
-  left: 22px;
-  line-height: 45px;
-}
-.rectangleParent7 {
-  position: absolute;
-  top: 1179px;
-  left: 352px;
-  width: 139px;
-  height: 45px;
-  flex-shrink: 0;
-}
-.rectangleParent8 {
-  position: absolute;
-  top: 1334px;
-  left: 352px;
-  width: 139px;
-  height: 45px;
-  flex-shrink: 0;
-}
-.rectangleParent9 {
-  position: absolute;
-  top: 1489px;
-  left: 352px;
-  width: 139px;
-  height: 45px;
-  flex-shrink: 0;
-}
-.div5 {
-  position: absolute;
-  top: 1024px;
-  left: 501px;
-  line-height: 45px;
-  font-weight: 500;
-  color: #9ca3af;
-  flex-shrink: 0;
-}
-.div6 {
-  position: absolute;
-  top: 1179px;
-  left: 501px;
-  line-height: 45px;
-  font-weight: 500;
-  color: #9ca3af;
-  flex-shrink: 0;
-}
-.div7 {
-  position: absolute;
-  top: 1334px;
-  left: 501px;
-  line-height: 45px;
-  font-weight: 500;
-  color: #9ca3af;
-  flex-shrink: 0;
-}
-.div8 {
-  position: absolute;
-  top: 1489px;
-  left: 501px;
-  line-height: 45px;
-  font-weight: 500;
-  color: #9ca3af;
-  flex-shrink: 0;
-}
-.rectangleParent10 {
-  position: absolute;
-  top: 996px;
-  left: 994px;
-  width: 131px;
-  height: 44px;
-  flex-shrink: 0;
-}
 .groupChild10 {
   position: absolute;
   top: 0px;
@@ -802,29 +566,92 @@ function submit() {
   left: 28px;
   line-height: 44px;
 }
-.rectangleParent11 {
+/* ── 최근 분석 기록 ─────────────────────────────
+   원본은 카드 4장을 좌표까지 복제해 뒀다. 기록 수에 따라 늘고 줄어야 하므로
+   좌표는 script 에서 계산하고 여기엔 모양만 남긴다. */
+.historyCard {
   position: absolute;
-  top: 1151px;
-  left: 994px;
-  width: 131px;
-  height: 44px;
-  flex-shrink: 0;
+  left: 184px;
+  box-shadow: 2px 2px 10px 1px rgba(179, 179, 179, 0.2);
+  border-radius: 20px;
+  background-color: #fff;
+  border: 2px solid #e6e7eb;
+  box-sizing: border-box;
+  width: 1002px;
+  height: 135px;
 }
-.rectangleParent12 {
+.historyTitle {
   position: absolute;
-  top: 1306px;
-  left: 994px;
-  width: 131px;
-  height: 44px;
-  flex-shrink: 0;
+  left: 226px;
+  width: 740px;
+  line-height: 45px;
+  color: #1f2937;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.rectangleParent13 {
+.historyButton {
   position: absolute;
-  top: 1461px;
   left: 994px;
   width: 131px;
   height: 44px;
-  flex-shrink: 0;
+}
+/* 카드 두 번째 줄 — 배지·규칙 버전·실행 시각.
+   원본은 셋 다 고정폭 상자였는데 'rules-2026-08-11' 이 알약 안에서 줄바꿈되어
+   카드 밖으로 흘러나왔다. 내용 길이에 맞춰 늘어나는 한 줄로 바꾼다. */
+.historyMeta {
+  position: absolute;
+  left: 226px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 750px;
+  white-space: nowrap;
+}
+.metaBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 37px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background-color: #e2f8f0;
+  color: #00a26a;
+}
+/* 5000행에서 잘린 결과는 완료와 같은 색으로 두면 안 된다. */
+.metaBadgeWarn {
+  background-color: #fdf0da;
+  color: #a86504;
+}
+.metaRuleset {
+  display: inline-flex;
+  align-items: center;
+  height: 37px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background-color: #f1f7ff;
+  border: 1px solid #d6e8fa;
+  box-sizing: border-box;
+  color: #00559e;
+}
+.metaRanAt {
+  font-weight: 500;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.historyNotice {
+  position: absolute;
+  top: 979px;
+  left: 226px;
+  width: 900px;
+  line-height: 45px;
+  font-weight: 500;
+  color: #6b7280;
+  text-align: left;
+}
+.historyNoticeError {
+  color: #d92d20;
 }
 .child5 {
   position: absolute;
@@ -930,6 +757,13 @@ function submit() {
   height: 45px;
   flex-shrink: 0;
   text-align: left;
+}
+ /* 템플릿의 '사용' 버튼 라벨. 기록 카드 배지와 공용이었는데 그쪽만 정리됐다. */
+.b9 {
+  position: absolute;
+  top: 0px;
+  left: 21px;
+  line-height: 45px;
 }
 .groupChild14 {
   position: absolute;

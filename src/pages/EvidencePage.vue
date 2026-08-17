@@ -1,86 +1,317 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import logo from '../assets/logo.png'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import wordmark from '../assets/wordmark.svg'
+import profileIcon from '../assets/profile.svg'
 import { useDesignScale } from '../composables/useDesignScale'
+import { useTermNames } from '../composables/useTermNames'
+import {
+  ApiError,
+  getAnalysis,
+  getAnalysisMeasurements,
+  getMapping,
+  listFiles,
+  parseConditions,
+} from '../api'
+import type { AnalysisDetail, AnalysisMeasurement, AnalysisRequest } from '../api'
 
 const DESIGN_WIDTH = 1920
-const DESIGN_HEIGHT = 3951
+const BASE_HEIGHT = 3951
 
 const { scale, offsetX } = useDesignScale(DESIGN_WIDTH)
 const router = useRouter()
+const route = useRoute()
+const { loadTerms, termName } = useTermNames()
 
-// 카드 안을 가로지르는 구분선들 — 원본은 전부 빈 <img> 였다.
-const dividers = [634, 832, 1176, 2084, 2187, 2350, 2423, 2496]
+// --- 불러오기 ---
 
-// 쉬운 말 | SQL | 둘 다 — 선택 하이라이트가 해당 구간으로 이동한다.
-const viewMode = ref<'쉬운 말' | 'SQL' | '둘 다'>('쉬운 말')
+const loading = ref(true)
+const loadError = ref('')
+const detail = ref<AnalysisDetail | null>(null)
+const conditions = ref<AnalysisRequest | null>(null)
+const measurements = ref<AnalysisMeasurement[]>([])
+const measurementTotal = ref(0)
+
+/** 분석에 쓰인 항목 코드가 원본 파일의 어느 컬럼에서 왔는지. */
+type ColumnOrigin = { code: string; raw: string; auto: boolean; file: string }
+const origins = ref<ColumnOrigin[]>([])
+
+// 앞 화면에서 넘어온 질문. 서버가 질문 문장을 저장하지 않아 주소로만 전달된다.
+const question = computed(() => String(route.query.q ?? '').trim())
+
+async function load() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const executionId = String(route.query.executionId ?? '')
+    if (!executionId) {
+      loadError.value = '어떤 분석의 근거인지 알 수 없어요. 결과 화면에서 다시 들어와 주세요.'
+      return
+    }
+    void loadTerms()
+    const loaded = await getAnalysis(executionId)
+    detail.value = loaded
+    conditions.value = parseConditions(loaded)
+
+    await Promise.all([loadMeasurements(executionId), loadOrigins()])
+  } catch (error) {
+    loadError.value =
+      error instanceof ApiError && error.code !== 'HTTP_ERROR' && error.code !== 'NETWORK_ERROR'
+        ? error.message
+        : '근거를 불러오지 못했어요. 잠시 후 다시 시도해 주세요'
+  } finally {
+    loading.value = false
+  }
+}
+
+/** 이 분석이 실제로 집계한 원본 측정 행. 원본 파일·행·컬럼까지 알려준다. */
+async function loadMeasurements(executionId: string) {
+  try {
+    const page = await getAnalysisMeasurements(executionId, { size: 12 })
+    measurements.value = page.items
+    measurementTotal.value = page.total
+  } catch {
+    measurements.value = []
+    measurementTotal.value = 0
+  }
+}
+
+/**
+ * 항목 코드 ↔ 원본 컬럼.
+ *
+ * 분석은 특정 파일에 묶이지 않아서 올라온 파일들의 매핑을 모아 코드로 찾는다.
+ * 목록 응답이 매핑까지 실어주면 이 왕복은 사라진다.
+ */
+async function loadOrigins() {
+  try {
+    // 매핑을 돌리지 않은 파일은 부를 필요가 없다 — 404 만 돌아온다.
+    const page = await listFiles({ size: 30 })
+    const mapped = page.items.filter((f) => f.auto_mapped_rate !== undefined)
+    const results = await Promise.allSettled(mapped.map((f) => getMapping(f.id)))
+    const wanted = conditions.value?.item_codes ?? []
+    const found: ColumnOrigin[] = []
+    const seen = new Set<string>()
+
+    results.forEach((result, i) => {
+      if (result.status !== 'fulfilled') return
+      for (const column of result.value.columns) {
+        if (!column.code || column.dict_type !== '측정항목') continue
+        if (wanted.length && !wanted.includes(column.code)) continue
+        const key = `${column.code}|${column.raw}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        found.push({
+          code: column.code,
+          raw: column.raw,
+          auto: column.status === 'exact' || column.status === 'fuzzy_auto',
+          file: mapped[i].filename,
+        })
+      }
+    })
+    origins.value = found.sort((a, b) => a.code.localeCompare(b.code))
+  } catch {
+    origins.value = []
+  }
+}
+
+// --- 라벨 ---
+
+const BUCKET_LABEL: Record<string, string> = {
+  month: '월별', quarter: '분기별', year: '연도별', none: '기간 전체',
+}
+const METRIC_LABEL: Record<string, string> = {
+  avg: '평균', max: '최대', min: '최소', count: '건수',
+}
+const bucketLabel = computed(() => BUCKET_LABEL[conditions.value?.bucket ?? 'none'] ?? '')
+const metricLabel = computed(() => METRIC_LABEL[conditions.value?.metric ?? 'avg'] ?? '')
+
+const interpretChips = computed(() => {
+  const c = conditions.value
+  if (!c) return []
+  return [
+    `측정 지점: ${c.site_names?.length ? c.site_names.join(', ') : '전체'}`,
+    `측정 항목: ${c.item_codes?.length ? c.item_codes.map(termName).join(', ') : '전체'}`,
+    `기간: ${c.from && c.to ? `${c.from} ~ ${c.to}` : '전체'}`,
+    `집계 단위: ${bucketLabel.value} ${metricLabel.value}`,
+    c.standard_set ? `${c.standard_set} · ${c.region_grade ?? '-'}` : '기준치 없음',
+  ]
+})
+
+const dataNote = computed(() => {
+  const d = detail.value
+  if (!d) return ''
+  const ran = new Date(d.ran_at)
+  const stamp = Number.isNaN(ran.getTime())
+    ? d.ran_at
+    : `${ran.getFullYear()}-${String(ran.getMonth() + 1).padStart(2, '0')}-${String(ran.getDate()).padStart(2, '0')} ${String(ran.getHours()).padStart(2, '0')}:${String(ran.getMinutes()).padStart(2, '0')}`
+  return `집계 결과 ${d.row_count}행 · 기준 초과 ${d.exceeded_count}건 · ${d.elapsed_ms}ms · ${stamp} 실행`
+})
+
+/** 쉬운 말 설명 — 조건에서 그대로 만든다. */
+const plainText = computed(() => {
+  const c = conditions.value
+  if (!c) return []
+  const site = c.site_names?.length ? c.site_names.join(', ') : '모든 지점'
+  const item = c.item_codes?.length ? c.item_codes.map(termName).join(', ') : '모든 측정 항목'
+  const period = c.from && c.to ? `${c.from}부터 ${c.to}까지` : '전체 기간'
+  const lines = [
+    `${site}의 ${item} 측정값을 ${period} 가져와, ${bucketLabel.value} ${metricLabel.value}을 냈어요.`,
+  ]
+  if (c.standard_set) {
+    lines.push(`그리고 각 구간이 ${c.standard_set}(${c.region_grade ?? '-'})을 넘는지 표시했어요.`)
+  }
+  lines.push('측정일이 없는 행은 집계에서 제외했습니다.')
+  return lines
+})
+
+// --- SQL 표시 ---
+
+const viewMode = ref<'쉬운 말' | 'SQL' | '둘 다'>('둘 다')
 const VIEW_SEGMENT = {
   '쉬운 말': { left: 1475, width: 116, radius: '20px 0px 0px 20px' },
   SQL: { left: 1591, width: 117, radius: '0px' },
   '둘 다': { left: 1708, width: 112, radius: '0px 20px 20px 0px' },
 } as const
 
-// SQL 컬럼 ↔ 원본 컬럼 매핑 표 (행 간격 73px)
+const showPlain = computed(() => viewMode.value !== 'SQL')
+const showSql = computed(() => viewMode.value !== '쉬운 말')
+
+const SQL_KEYWORDS =
+  /\b(SELECT|FROM|WHERE|AND|OR|GROUP BY|ORDER BY|LIMIT|AS|IS NOT NULL|IS NULL|CASE|WHEN|THEN|ELSE|END|ROUND|AVG|SUM|COUNT|MAX|MIN|DATE_FORMAT|CAST|CHAR|ON|JOIN|IN)\b/g
+
+type Token = { text: string; kind: 'kw' | 'str' | 'comment' | 'plain' }
+
+/** 서버가 준 SQL 을 줄 단위로 쪼개고 키워드·문자열·주석만 구분해 색을 준다. */
+const sqlLines = computed<Token[][]>(() => {
+  const text = detail.value?.generated_sql ?? ''
+  return text.split('\n').map((line) => {
+    if (!line.trim()) return [{ text: ' ', kind: 'plain' as const }]
+    if (line.trim().startsWith('--')) return [{ text: line, kind: 'comment' as const }]
+
+    const tokens: Token[] = []
+    // 문자열 먼저 떼어내야 그 안의 단어가 키워드로 물들지 않는다.
+    const parts = line.split(/('[^']*')/g)
+    for (const part of parts) {
+      if (!part) continue
+      if (part.startsWith("'")) {
+        tokens.push({ text: part, kind: 'str' })
+        continue
+      }
+      let last = 0
+      SQL_KEYWORDS.lastIndex = 0
+      let match: RegExpExecArray | null
+      while ((match = SQL_KEYWORDS.exec(part)) !== null) {
+        if (match.index > last) tokens.push({ text: part.slice(last, match.index), kind: 'plain' })
+        tokens.push({ text: match[0], kind: 'kw' })
+        last = match.index + match[0].length
+      }
+      if (last < part.length) tokens.push({ text: part.slice(last), kind: 'plain' })
+    }
+    return tokens
+  })
+})
+
+// --- 배치 ---
+// 쉬운 말 띠(230px)와 SQL 블록(디자인 532px)이 켜지고 꺼지면서 아래가 밀린다.
+
+const SQL_LINE_H = 38
+const SQL_PADDING = 72
+const PLAIN_BAND_H = 230
+const BASE_SQL_TOP = 1486
+const BASE_SQL_H = 532
+
+const plainBandH = computed(() => (showPlain.value ? PLAIN_BAND_H : 0))
+const sqlTop = computed(() => BASE_SQL_TOP + (plainBandH.value - PLAIN_BAND_H))
+const sqlHeight = computed(() =>
+  showSql.value ? SQL_PADDING + sqlLines.value.length * SQL_LINE_H : 0,
+)
+/** SQL 카드 안쪽 내용이 디자인보다 얼마나 늘거나 줄었는지. */
+const sqlShift = computed(() => sqlTop.value + sqlHeight.value - (BASE_SQL_TOP + BASE_SQL_H))
+
 const MAPPING_TOP = 2291
 const MAPPING_STEP = 73
-const mappingRows = [
-  { sqlCol: '측정일', origCol: '측정일자', badge: '자동 매핑', byHuman: false, confirm: '-' },
-  { sqlCol: '측정지점', origCol: '지점명', badge: '자동 매핑', byHuman: false, confirm: '-' },
-  { sqlCol: 'bod_mg_l', origCol: 'BOD', badge: '자동 매핑', byHuman: false, confirm: '-' },
-  { sqlCol: '수계_구분', origCol: '구분', badge: '사람 확인', byHuman: true, confirm: '박서연 08-08 09:40' },
-]
-const mappingTop = (i: number) => MAPPING_TOP + i * MAPPING_STEP
+const MAPPING_BASE_ROWS = 4
+const mappingTop = (i: number) => MAPPING_TOP + sqlShift.value + i * MAPPING_STEP
+const mappingShift = computed(
+  () => (Math.max(1, origins.value.length) - MAPPING_BASE_ROWS) * MAPPING_STEP,
+)
+const mappingDividers = computed(() =>
+  origins.value.slice(1).map((_, i) => mappingTop(i) + 59),
+)
 
-// 원본 데이터 행 표 (행 간격 104px)
 const RAW_TOP = 2869
 const RAW_STEP = 104
-const RAW_COL = {
-  no: 120,
-  date: 298,
-  site: 518,
-  type: 819,
-  bod: 1121,
-  temp: 1375,
-  vs: 1687,
-  vsOver: 1673,
+const RAW_BASE_ROWS = 7
+const rawShownRows = computed(() => measurements.value)
+const afterMapping = computed(() => sqlShift.value + mappingShift.value)
+const rawTop = (i: number) => RAW_TOP + afterMapping.value + i * RAW_STEP
+const rawShift = computed(
+  () => (Math.max(1, rawShownRows.value.length) - RAW_BASE_ROWS) * RAW_STEP,
+)
+const rawDividers = computed(() => [
+  2737 + afterMapping.value,
+  ...rawShownRows.value.slice(0, -1).map((_, i) => rawTop(i) + 70),
+])
+
+const footerTop = computed(() => 3707 + afterMapping.value + rawShift.value)
+const designHeight = computed(() => BASE_HEIGHT + afterMapping.value + rawShift.value)
+
+const RAW_COL = { no: 120, date: 298, site: 518, outlet: 819, value: 1121, limit: 1375, vs: 1687, vsOver: 1673 }
+
+const dividers = computed(() => [634, 832, 1176, 2084 + sqlShift.value, 2187 + sqlShift.value])
+
+/** 이 측정값 한 건이 어떻게 판정됐는지 보여주는 화면으로. */
+function openRow(row: AnalysisMeasurement) {
+  router.push({
+    name: 'row-detail',
+    query: {
+      executionId: String(route.query.executionId ?? detail.value?.execution_id ?? ''),
+      measurementId: String(row.measurement_id),
+    },
+  })
 }
-const rawRows = [
-  { no: '12', date: '1.8', site: '한강대교', type: '하천', bod: '1.5', temp: '4.2', vs: '이내', over: false },
-  { no: '37', date: '1.8', site: '한강대교', type: '하천', bod: '1.8', temp: '3.9', vs: '이내', over: false },
-  { no: '61', date: '1.8', site: '한강대교', type: '하천', bod: '2.1', temp: '4.5', vs: '이내', over: false },
-  { no: '88', date: '1.8', site: '한강대교', type: '하천', bod: '1.8', temp: '5.1', vs: '이내', over: false },
-  { no: '114', date: '1.8', site: '한강대교', type: '하천', bod: '1.9', temp: '5.8', vs: '이내', over: false },
-  { no: '402', date: '1.8', site: '한강대교', type: '하천', bod: '4.4', temp: '27.3', vs: '+47%', over: true },
-  { no: '428', date: '1.8', site: '한강대교', type: '하천', bod: '3.6', temp: '28.1', vs: '+20%', over: true },
-]
-const rawTop = (i: number) => RAW_TOP + i * RAW_STEP
-// 표 안 행 구분선 — 헤더 아래 한 줄 + 각 행 아래 70px 지점.
-const rawDividers = [2737, ...rawRows.slice(0, -1).map((_, i) => rawTop(i) + 70)]
-const firstOverRow = rawRows.findIndex((r) => r.over)
-const rawHighlight = {
-  top: rawTop(firstOverRow) - 34,
-  height: (rawRows.length - firstOverRow) * RAW_STEP,
+
+function formatDay(iso: string) {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
 }
+
+/**
+ * 이 측정값이 기준을 벗어났는지.
+ *
+ * 분석 응답의 limits 를 항목별로 찾아 상·하한과 비교한다. pH 처럼 하한이 있는
+ * 항목은 미달도 위반이다.
+ */
+function judge(row: AnalysisMeasurement) {
+  const limit = detail.value?.limits.find((l) => l.item_code === row.item_code)
+  if (!limit) return { text: '기준 없음', over: false }
+  if (limit.limit_min !== undefined && row.value_num < limit.limit_min) {
+    return { text: `하한 미달 -${Math.round(((limit.limit_min - row.value_num) / limit.limit_min) * 100)}%`, over: true }
+  }
+  if (row.value_num > limit.limit_max) {
+    return { text: `상한 초과 +${Math.round(((row.value_num - limit.limit_max) / limit.limit_max) * 100)}%`, over: true }
+  }
+  return { text: '이내', over: false }
+}
+
+onMounted(load)
 </script>
 
 <template>
-  <div :class="$style.viewport" :style="{ height: `${DESIGN_HEIGHT * scale}px` }">
-  <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
+  <div :class="$style.viewport" :style="{ height: `${designHeight * scale}px` }">
+  <div :class="$style.div"
+       :style="{ transform: `translateX(${offsetX}px) scale(${scale})`, height: `${designHeight}px` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <b :class="$style.b2">이 결과가 나온 근거</b>
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
-      <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
-      <b :class="$style.b3">물</b>
-      <b :class="$style.b4">볼래</b>
-      <b :class="$style.b5">ㅓ</b>
-    </div>
-    <div :class="$style.profile" />
+    <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
+    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
     <b :class="$style.b17">질문이 어떻게 해석되고, 어떤 데이터에서 어떻게 계산됐는지 전부 볼 수 있어요.</b>
 
-    <!-- ① 질문 → ② 해석 → ③ 데이터 요약 카드 -->
+    <!-- ① 질문 → ② 해석 → ③ 데이터 -->
     <div :class="$style.inner" />
     <div v-for="top in dividers" :key="top" :class="$style.divider" :style="{ top: `${top}px` }" />
     <div :class="$style.ellipseParent">
@@ -88,41 +319,36 @@ const rawHighlight = {
       <b :class="$style.b31">1</b>
     </div>
     <b :class="$style.b34">사용자 질문</b>
-    <b :class="$style.bod3">“작년 인천 지점 BOD 월별 추이 보여줘"</b>
+    <b :class="$style.bod3">
+      {{ question ? `“${question}”` : '질문 없이 조건을 직접 골라 실행한 분석이에요' }}
+    </b>
+
     <div :class="$style.ellipseGroup">
       <div :class="$style.ellipseDiv" />
       <b :class="$style.b32">2</b>
     </div>
     <b :class="$style.b35">시스템 해석</b>
-    <div :class="$style.rectangleParent">
-      <div :class="$style.groupChild" />
-      <div :class="$style.div4">즉청 지점: 한강 수계</div>
+    <div :class="$style.interpretRow">
+      <div v-for="chip in interpretChips" :key="chip" :class="$style.interpretChip">{{ chip }}</div>
+      <div v-if="!interpretChips.length" :class="$style.interpretChip">
+        {{ loading ? '불러오는 중이에요…' : '조건을 알 수 없어요' }}
+      </div>
     </div>
-    <div :class="$style.rectangleContainer">
-      <div :class="$style.groupInner" />
-      <div :class="$style.bod">측정 항목: BOD</div>
-    </div>
-    <div :class="$style.groupDiv">
-      <div :class="$style.groupChild2" />
-      <div :class="$style.div5">기간:2025-01-01 ~ 2025-12-31</div>
-    </div>
-    <div :class="$style.rectangleParent2">
-      <div :class="$style.groupInner" />
-      <div :class="$style.div6">집계 단위: 월별 평균</div>
-    </div>
-    <div :class="$style.rectangleGroup">
-      <div :class="$style.groupItem" />
-      <div :class="$style.mgl">하천 등급 3.0mg/L</div>
-    </div>
+
     <div :class="$style.ellipseContainer">
       <div :class="$style.ellipseDiv" />
       <b :class="$style.b32">3</b>
     </div>
     <b :class="$style.b36">사용한 데이터</b>
-    <b :class="$style.xlsx">인천_수질측정_2025.xlsx · 시트 “측정결과" · 1,240행 중 조건에 맞는 46행</b>
+    <b :class="[$style.xlsx, loadError && $style.noticeError]">
+      {{ loadError || dataNote || '—' }}
+      <template v-if="detail && !loadError">
+        <br />사전 {{ detail.dictionary_version }} · 규칙 {{ detail.ruleset_version }}
+      </template>
+    </b>
 
-    <!-- 생성된 SQL 카드 -->
-    <div :class="$style.rectangleDiv" />
+    <!-- 생성된 SQL -->
+    <div :class="$style.rectangleDiv" :style="{ height: `${1518 + sqlShift + mappingShift}px` }" />
     <b :class="$style.sql">생성된 SQL</b>
     <div :class="$style.child19" />
     <div :class="$style.child20" />
@@ -137,111 +363,146 @@ const rawHighlight = {
        @click="viewMode = 'SQL'">SQL</b>
     <b :class="[$style.b38, viewMode === '둘 다' ? $style.viewOn : $style.viewOff, 'link']"
        @click="viewMode = '둘 다'">둘 다</b>
-    <div :class="$style.child22" />
-    <b :class="$style.b39">쉬운 말로</b>
-    <div :class="$style.bodContainer">
-      <span :class="$style.span">인천 </span>
-      <b :class="$style.span">한강대교</b>
-      <span :class="$style.span"> 지점의 </span>
-      <b :class="$style.span">2025년</b>
-      <span :class="$style.span"> BOD 측정값을 가져와, </span>
-      <b :class="$style.span">월별로 평균</b>
-      <span :class="$style.span">을 냈어요. 그리고 각 월 평균이 기준치 </span>
-      <b :class="$style.span">3.0 mg/L</b>
-      <span :class="$style.span">를 넘는지 표시했어요. <br/>측정값이 비어 있는 행은 평균에서 제외했습니다.</span>
-    </div>
-    <div :class="$style.sqlBlock">
-      <div :class="$style.sqlLine"><span :class="$style.sqlComment">-- 규칙 v1.3 · 사전 v1.0 으로 생성됨</span></div>
-      <div :class="$style.sqlLine"><span :class="$style.sqlKeyword">SELECT</span></div>
-      <div :class="[$style.sqlLine, $style.sqlSelectRow]">
-        <span>DATE_TRUNC(<span :class="$style.sqlString">'month'</span>, 측정일)</span>
-        <span><span :class="$style.sqlKeyword">AS</span> 월,</span>
+
+    <template v-if="showPlain">
+      <div :class="$style.child22" />
+      <b :class="$style.b39">쉬운 말로</b>
+      <div :class="$style.bodContainer">
+        <template v-for="(line, i) in plainText" :key="i"><br v-if="i" />{{ line }}</template>
       </div>
-      <div :class="[$style.sqlLine, $style.sqlSelectRow]">
-        <span>ROUND(AVG(bod_mg_l), 1)</span>
-        <span><span :class="$style.sqlKeyword">AS</span> bod_평균,</span>
+    </template>
+
+    <div v-if="showSql" :class="$style.sqlBlock"
+         :style="{ top: `${sqlTop}px`, height: `${sqlHeight}px` }">
+      <div v-for="(tokens, i) in sqlLines" :key="i" :class="$style.sqlLine"><span
+        v-for="(token, j) in tokens" :key="j"
+        :class="{
+          [$style.sqlKeyword]: token.kind === 'kw',
+          [$style.sqlString]: token.kind === 'str',
+          [$style.sqlComment]: token.kind === 'comment',
+        }">{{ token.text }}</span></div>
+      <div v-if="!sqlLines.length" :class="$style.sqlLine">
+        <span :class="$style.sqlComment">-- 실행된 SQL 을 받지 못했어요</span>
       </div>
-      <div :class="[$style.sqlLine, $style.sqlSelectRow]">
-        <span>COUNT(bod_mg_l)</span>
-        <span><span :class="$style.sqlKeyword">AS</span> 측정_건수,</span>
-      </div>
-      <div :class="[$style.sqlLine, $style.sqlSelectRow]">
-        <span>AVG(bod_mg_l) &gt; 3.0</span>
-        <span><span :class="$style.sqlKeyword">AS</span> 기준_초과</span>
-      </div>
-      <div :class="[$style.sqlLine, $style.sqlClauseRow]">
-        <span :class="$style.sqlKeyword">FROM</span><span>측정결과</span>
-      </div>
-      <div :class="[$style.sqlLine, $style.sqlClauseRow]">
-        <span :class="$style.sqlKeyword">WHERE</span><span>측정지점 = <span :class="$style.sqlString">'한강대교'</span></span>
-      </div>
-      <div :class="[$style.sqlLine, $style.sqlClauseRow]">
-        <span :class="[$style.sqlKeyword, $style.sqlAndIndent]">AND</span><span>측정일 <span :class="$style.sqlKeyword">BETWEEN</span> <span :class="$style.sqlString">'2025-01-01'</span> <span :class="$style.sqlKeyword">AND</span> <span :class="$style.sqlString">'2025-12-31'</span></span>
-      </div>
-      <div :class="[$style.sqlLine, $style.sqlClauseRow]">
-        <span :class="[$style.sqlKeyword, $style.sqlAndIndent]">AND</span><span>bod_mg_l <span :class="$style.sqlKeyword">IS NOT NULL</span><span :class="$style.sqlTrailComment">-- 결측 제외</span></span>
-      </div>
-      <div :class="$style.sqlLine"><span :class="$style.sqlKeyword">GROUP BY</span> 1</div>
-      <div :class="$style.sqlLine"><span :class="$style.sqlKeyword">ORDER BY</span> 1;</div>
     </div>
 
-    <!-- SQL 컬럼 ↔ 원본 컬럼 매핑 -->
-    <div :class="$style.child2" />
-    <b :class="$style.sql2">이 SQL이 쓴 컬럼이 원본 파일의 어느 컬럼인지</b>
-    <b :class="$style.sql3">SQL 컬럼</b>
-    <b :class="$style.b28">원본 컬럼</b>
-    <b :class="$style.b29">매핑 양식</b>
-    <b :class="$style.b30">확인자</b>
-    <template v-for="(row, i) in mappingRows" :key="i">
-      <b :class="$style.mapSqlCol" :style="{ top: `${mappingTop(i)}px` }">{{ row.sqlCol }}</b>
-      <b :class="$style.mapOrigCol" :style="{ top: `${mappingTop(i)}px` }">{{ row.origCol }}</b>
+    <!-- 항목 코드 ↔ 원본 컬럼 -->
+    <div :class="$style.child2"
+         :style="{ top: `${2275 + sqlShift}px`, height: `${Math.max(1, origins.length) * 73 + 2}px` }" />
+    <b :class="$style.sql2" :style="{ top: `${2115 + sqlShift}px` }">이 분석이 쓴 항목이 원본 파일의 어느 컬럼에서 왔는지</b>
+    <b :class="$style.sql3" :style="{ top: `${2204 + sqlShift}px` }">표준 용어</b>
+    <b :class="$style.b28" :style="{ top: `${2204 + sqlShift}px` }">원본 컬럼</b>
+    <b :class="$style.b29" :style="{ top: `${2204 + sqlShift}px` }">매핑 방식</b>
+    <b :class="$style.b30" :style="{ top: `${2204 + sqlShift}px` }">파일</b>
+    <div v-for="top in mappingDividers" :key="top" :class="$style.divider" :style="{ top: `${top}px` }" />
+
+    <div v-if="!origins.length" :class="$style.mapEmpty" :style="{ top: `${mappingTop(0)}px` }">
+      {{ loading ? '불러오는 중이에요…' : '이 분석이 쓴 항목의 원본 컬럼을 찾지 못했어요.' }}
+    </div>
+    <template v-for="(row, i) in origins" :key="`${row.code}-${row.raw}`">
+      <b :class="$style.mapSqlCol" :style="{ top: `${mappingTop(i)}px` }">{{ termName(row.code) }}</b>
+      <b :class="$style.mapOrigCol" :style="{ top: `${mappingTop(i)}px` }">{{ row.raw }}</b>
       <div :class="$style.mapBadge" :style="{ top: `${mappingTop(i)}px` }">
-        <div :class="row.byHuman ? $style.mapBadgeHuman : $style.mapBadgeAuto" />
-        <b :class="[$style.mapBadgeText, row.byHuman && $style.mapBadgeTextHuman]">{{ row.badge }}</b>
+        <div :class="row.auto ? $style.mapBadgeAuto : $style.mapBadgeHuman" />
+        <b :class="[$style.mapBadgeText, !row.auto && $style.mapBadgeTextHuman]">
+          {{ row.auto ? '자동 매핑' : '사람 확인' }}
+        </b>
       </div>
-      <div :class="$style.mapConfirm" :style="{ top: `${mappingTop(i)}px` }">{{ row.confirm }}</div>
+      <div :class="$style.mapConfirm" :style="{ top: `${mappingTop(i)}px` }">{{ row.file }}</div>
     </template>
 
-    <!-- 원본 데이터 행 -->
-    <b :class="$style.b18">원본 데이터 행 · 조건 맞는 46행 중 앞 8행</b>
-    <div :class="$style.child10" />
-    <div :class="$style.item" />
-    <div :class="$style.child23"
-         :style="{ top: `${rawHighlight.top}px`, height: `${rawHighlight.height}px` }" />
+    <!-- 기준을 넘은 측정값 -->
+    <!-- 배경(띠·카드)을 먼저 깔고 제목을 올린다. 둘 다 absolute 라 나중에 그린 쪽이
+         위로 올라오는데, 띠가 제목 뒤에 오면 글자를 덮어 버린다. -->
+    <div :class="$style.child10" :style="{ top: `${2626 + afterMapping}px` }" />
+    <div :class="$style.item"
+         :style="{ top: `${2729 + afterMapping}px`, height: `${109 + Math.max(1, rawShownRows.length) * 104}px` }" />
+    <b :class="$style.b18" :style="{ top: `${2660 + afterMapping}px` }">
+      이 분석이 집계한 원본 행 · {{ measurementTotal }}건{{ measurementTotal > rawShownRows.length ? ` 중 앞 ${rawShownRows.length}건` : '' }}
+    </b>
     <div v-for="top in rawDividers" :key="top" :class="$style.rawDivider" :style="{ top: `${top}px` }" />
-    <b :class="$style.rawHead" :style="{ left: `${RAW_COL.no}px` }">원본 행</b>
-    <b :class="$style.rawHead" :style="{ left: `${RAW_COL.date}px` }">측정일자</b>
-    <b :class="$style.rawHead" :style="{ left: '516px' }">지점명</b>
-    <b :class="$style.rawHead" :style="{ left: `${RAW_COL.type}px` }">구분</b>
-    <b :class="$style.rawHead" :style="{ left: `${RAW_COL.bod}px` }">BOD</b>
-    <b :class="$style.rawHead" :style="{ left: `${RAW_COL.temp}px` }">수온</b>
-    <b :class="$style.rawHead" :style="{ left: '1673px' }">기준 3.0</b>
-    <template v-for="(row, i) in rawRows" :key="i">
-      <b :class="$style.rawNo" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.no}px` }">{{ row.no }}</b>
-      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.date}px` }">{{ row.date }}</div>
-      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.site}px` }">{{ row.site }}</div>
-      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.type}px` }">{{ row.type }}</div>
-      <component :is="row.over ? 'b' : 'div'"
-                 :class="row.over ? $style.rawCellOver : $style.rawCell"
-                 :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.bod}px` }">{{ row.bod }}</component>
-      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.temp}px` }">{{ row.temp }}</div>
-      <!-- 기준 대비: 초과 행만 빨간 25px, 3px 아래로 -->
-      <b v-if="row.over" :class="$style.rawVsOver"
-         :style="{ top: `${rawTop(i) + 3}px`, left: `${RAW_COL.vsOver}px` }">{{ row.vs }}</b>
-      <div v-else :class="$style.rawCell"
-           :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.vs}px` }">{{ row.vs }}</div>
-      <!-- 초과 행은 행 전체를 눌러 상세로 들어간다 -->
-      <div v-if="row.over" :class="[$style.rawRowHit, 'row-hit']" role="button"
-           :style="{ top: `${rawTop(i) - 34}px` }" @click="router.push('/row-detail')" />
+
+    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.no}px` }">원본 행</b>
+    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.date}px` }">측정일</b>
+    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.site}px` }">지점 · 방류구</b>
+    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.outlet}px` }">원본 컬럼</b>
+    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.value}px` }">표준 용어</b>
+    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.limit}px` }">측정값</b>
+    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: '1673px' }">기준 대비</b>
+
+    <div v-if="!rawShownRows.length" :class="$style.mapEmpty" :style="{ top: `${rawTop(0)}px` }">
+      {{ loading ? '불러오는 중이에요…' : '집계에 쓰인 행이 없어요.' }}
+    </div>
+    <template v-for="(row, i) in rawShownRows" :key="row.measurement_id">
+      <b :class="$style.rawNo" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.no}px` }">
+        {{ row.filename }} #{{ row.source_row + 1 }}
+      </b>
+      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.date}px` }">{{ formatDay(row.measured_on) }}</div>
+      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.site}px` }">{{ row.site_name }} · {{ row.outlet }}</div>
+      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.outlet}px` }">{{ row.source_column }}</div>
+      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.value}px` }">{{ termName(row.item_code) }}</div>
+      <component :is="judge(row).over ? 'b' : 'div'"
+                 :class="judge(row).over ? $style.rawCellOver : $style.rawCell"
+                 :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.limit}px` }">{{ row.value_text }}</component>
+      <component :is="judge(row).over ? 'b' : 'div'"
+                 :class="judge(row).over ? $style.rawVsOver : $style.rawCell"
+                 :style="{ top: `${rawTop(i) + (judge(row).over ? 3 : 0)}px`, left: `${RAW_COL.vsOver}px` }">{{ judge(row).text }}</component>
+      <!-- 행 전체를 눌러 이 한 건이 어떻게 판정됐는지로 들어간다 -->
+      <div :class="[$style.rawRowHit, 'row-hit']" role="button"
+           :style="{ top: `${rawTop(i) - 34}px` }" @click="openRow(row)" />
     </template>
 
-    <div :class="$style.child18" />
-    <div :class="[$style.div37, 'link']" @click="router.push('/results')">←</div>
+    <div :class="$style.child18" :style="{ top: `${footerTop}px` }" />
+    <div :class="[$style.div37, 'link']" @click="router.back()">←</div>
   </div>
   </div>
 </template>
 
 <style module>
+/* 시스템 해석 칩 — 원본은 칩마다 좌표와 폭을 박아뒀다. 조건 개수와 글자 길이가
+   데이터마다 달라서 flex 행으로 바꾸고 내용에 맞춰 늘어나게 둔다. */
+.interpretRow {
+  position: absolute;
+  top: 736px;
+  left: 169px;
+  width: 1620px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: var(--font-body-03);
+  color: #455772;
+}
+.interpretChip {
+  display: inline-flex;
+  align-items: center;
+  height: 54px;
+  padding: 0 28px;
+  box-sizing: border-box;
+  border-radius: 30px;
+  background-color: #fff;
+  border: 2px solid #d0d0d0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* 표에 보여줄 게 없을 때 첫 행 자리에 한 줄 */
+.mapEmpty {
+  position: absolute;
+  left: 105px;
+  line-height: 45px;
+  font-weight: 500;
+}
+.noticeError {
+  color: #d92d20;
+}
+/* 서비스 워드로고. 원래는 물방울 아이콘 위에 '물 / 볼래 / ㅓ' 글자를 겹쳐 만들었는데,
+   Ria Sans 가 설치되지 않은 환경에서는 글자 폭이 달라져 어긋난다. 한 장으로 바꾼다. */
+.wordmark {
+  position: absolute;
+  top: 82px;
+  left: 50px;
+  width: 144px;
+  height: 35px;
+}
 .viewport {
   width: 100%;
   overflow: hidden;
@@ -294,41 +555,10 @@ const rawHighlight = {
   font-size: var(--font-title-02);
   color: #0053e3;
 }
-.caAaca4862A5402b585a54a82eParent {
-  position: absolute;
-  font-size: var(--font-body-01);
-  top: 82px;
-  left: 50px;
-  width: 144px;
-  height: 35px;
-  text-align: center;
-  color: #0053e3;
-  font-family: 'Ria Sans';
-}
-.caAaca4862A5402b585a54a82eIcon {
-  position: absolute;
-  top: 3px;
-  left: 32px;
-  width: 23px;
-  height: 29px;
-  object-fit: cover;
-}
 .b3 {
   position: absolute;
   top: 0px;
   left: 0px;
-  line-height: 35px;
-}
-.b4 {
-  position: absolute;
-  top: 0px;
-  left: 81px;
-  line-height: 35px;
-}
-.b5 {
-  position: absolute;
-  top: 0px;
-  left: 51px;
   line-height: 35px;
 }
 /* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
@@ -337,7 +567,6 @@ const rawHighlight = {
   top: 76px;
   left: 1822px;
   border-radius: 50%;
-  background-color: #d9d9d9;
   width: 48px;
   height: 48px;
 }
@@ -792,13 +1021,18 @@ const rawHighlight = {
   color: #000;
   width: 196px;
 }
+ /* 원본은 126px 이었지만 '생물화학적산소요구량' 같은 실제 용어가 줄바꿈되며
+   다음 행을 침범한다. 매핑 방식 열(764) 앞까지 쓰고 한 줄로 자른다. */
 .mapOrigCol {
   position: absolute;
   left: 424px;
   line-height: 45px;
   display: inline-block;
   color: #000;
-  width: 126px;
+  width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .mapBadge {
   position: absolute;
@@ -834,7 +1068,7 @@ const rawHighlight = {
 .mapBadgeTextHuman {
   color: #00a26a;
 }
-/* "-" 와 "박서연 08-08 09:40" 이 같은 중심(1199px)에 오도록 넓게 잡고 가운데 정렬 */
+/* 확인자가 없을 때의 "-" 와 이름·시각이 같은 중심(1199px)에 오도록 넓게 잡는다 */
 .mapConfirm {
   position: absolute;
   left: 1057px;
@@ -843,6 +1077,9 @@ const rawHighlight = {
   text-align: center;
   display: inline-block;
   width: 284px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .b18 {
   position: absolute;

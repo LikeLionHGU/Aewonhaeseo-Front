@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import logo from '../assets/logo.png'
+import wordmark from '../assets/wordmark.svg'
+import profileIcon from '../assets/profile.svg'
 import uploadIcon from '../assets/upload.svg'
 import analyzeIcon from '../assets/analyze.svg'
 import { useDesignScale } from '../composables/useDesignScale'
@@ -33,13 +34,8 @@ function connectSampleData() {
     <div :class="$style.csv">엑셀·CSV 파일을 업로드하면 <br/>데이터를 자동으로 정리하고 용어를 표준화합니다.</div>
     <div :class="$style.bod">“작년 인천 지점 BOD 월별 추이 보여줘"<br/>궁금한 내용을 입력하면, 근거와 함께 분석 결과를 확인할 수 있어요.</div>
     <img :class="$style.child2" :src="analyzeIcon" alt="" />
-    <div :class="[$style.caAaca4862A5402b585a54a82eParent, 'link']" @click="router.push('/')">
-      <img :class="$style.caAaca4862A5402b585a54a82eIcon" :src="logo" alt="로고" />
-      <b :class="$style.b5">물</b>
-      <b :class="$style.b6">볼래</b>
-      <b :class="$style.b7">ㅓ</b>
-    </div>
-    <div :class="$style.profile" />
+    <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
+    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
     <div :class="[$style.rectangleParent, 'btn']" role="button" @click="router.push('/upload')">
       <div :class="[$style.groupChild, 'btn-fill']" />
       <div :class="$style.csv2">엑셀·CSV 업로드</div>
@@ -66,6 +62,15 @@ function connectSampleData() {
 </template>
 
 <style module>
+/* 서비스 워드로고. 원래는 물방울 아이콘 위에 '물 / 볼래 / ㅓ' 글자를 겹쳐 만들었는데,
+   Ria Sans 가 설치되지 않은 환경에서는 글자 폭이 달라져 어긋난다. 한 장으로 바꾼다. */
+.wordmark {
+  position: absolute;
+  top: 82px;
+  left: 50px;
+  width: 144px;
+  height: 35px;
+}
 .viewport {
   width: 100%;
   overflow: hidden;
@@ -180,49 +185,12 @@ function connectSampleData() {
   width: 45px;
   height: 45px;
 }
-.caAaca4862A5402b585a54a82eParent {
-  position: absolute;
-  top: 82px;
-  left: 50px;
-  width: 144px;
-  height: 35px;
-  font-size: var(--font-body-01);
-  color: #0053e3;
-  font-family: 'Ria Sans';
-}
-.caAaca4862A5402b585a54a82eIcon {
-  position: absolute;
-  top: 3px;
-  left: 32px;
-  width: 23px;
-  height: 29px;
-  object-fit: cover;
-}
-.b5 {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  line-height: 35px;
-}
-.b6 {
-  position: absolute;
-  top: 0px;
-  left: 81px;
-  line-height: 35px;
-}
-.b7 {
-  position: absolute;
-  top: 0px;
-  left: 51px;
-  line-height: 35px;
-}
 /* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
 .profile {
   position: absolute;
   top: 76px;
   left: 1822px;
   border-radius: 50%;
-  background-color: #d9d9d9;
   width: 48px;
   height: 48px;
 }
