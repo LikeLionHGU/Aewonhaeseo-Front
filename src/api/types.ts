@@ -209,10 +209,12 @@ export interface StandardLimit {
   /** 하한. pH 처럼 범위로 규정된 항목에만 있다. */
   limit_min?: number
   limit_max: number
-  unit: string
+  unit?: string
   legal_basis: string
   legal_article: string
   source: string
+  /** 이 기준이 걸리는 배출규모. 규모와 무관한 항목은 null 이다. */
+  scale?: 'large' | 'small' | null
 }
 
 export interface ExceedanceItem {

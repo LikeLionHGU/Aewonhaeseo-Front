@@ -116,11 +116,19 @@ export function getStandardSets() {
   return get<StandardSets>(`${V1}/standards`)
 }
 
+/**
+ * 기준치 표.
+ *
+ * scale 은 필수다 — BOD·COD·부유물질처럼 배출규모에 따라 기준이 갈리는 항목이
+ * 있어서, 규모를 정하지 않으면 서버가 400 을 낸다(2026-08-17 확인).
+ * 규모와 무관한 항목(총질소·총인·수소이온농도)은 scale 이 null 로 온다.
+ */
 export function getStandardLimits(params: {
+  scale: 'large' | 'small'
   standard_set?: string
   region_grade?: string
   item_code?: string
-} = {}) {
+}) {
   return get<StandardLimit[]>(`${V1}/standards/limits${query(params)}`)
 }
 
