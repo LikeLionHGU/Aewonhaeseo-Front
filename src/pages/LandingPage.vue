@@ -350,10 +350,14 @@ const router = useRouter()
   left: 0px;
   line-height: 45px;
 }
+ /* 원본은 텍스트 폭의 절반(61px)을 빼서 중앙을 맞췄다. 실제 렌더 폭이 달라
+   10px 왼쪽으로 밀린다. 폭과 무관하게 맞도록 실제 중앙 정렬로 바꾼다. */
 .aboutUs {
   position: absolute;
   top: 1241px;
-  left: calc(50% - 61px);
+  left: 0px;
+  right: 0px;
+  text-align: center;
   font-size: var(--font-body-03);
   line-height: 45px;
   font-family: 'Gmarket Sans';
@@ -395,12 +399,14 @@ const router = useRouter()
   flex-shrink: 0;
   font-family: 'Gmarket Sans';
 }
+ /* 위와 같은 이유. 여러 줄이 아니라 한 줄이므로 가운데 정렬로 둔다. */
 .b10 {
   position: absolute;
   top: 2415px;
-  left: calc(50% - 490px);
+  left: 0px;
+  right: 0px;
   font-size: var(--font-display);
-  text-align: left;
+  text-align: center;
   flex-shrink: 0;
   color: #00d7f3;
 }
@@ -429,15 +435,21 @@ const router = useRouter()
   width: 785px;
   height: 351px;
 }
+ /* 카드 안 요소는 원본이 텍스트 폭을 재서 left 를 박아뒀다. 두 카드가 이 클래스를
+   공유하는데 제목 길이가 서로 달라 둘 중 하나는 반드시 틀어진다.
+   실제 중앙 정렬로 바꿔 글자 길이와 무관하게 맞춘다. */
 .b11 {
   position: absolute;
   top: 85px;
-  left: 147px;
+  left: 0px;
+  right: 0px;
+  text-align: center;
 }
 .ai2 {
   position: absolute;
   top: 176px;
-  left: 38px;
+  left: 0px;
+  right: 0px;
   font-size: var(--font-body-03);
   line-height: 45px;
   color: #f9fafb;
@@ -480,10 +492,12 @@ const router = useRouter()
 .b13 {
   position: absolute;
   top: 176px;
-  left: 14px;
+  left: 0px;
+  right: 0px;
   font-size: var(--font-body-03);
   line-height: 45px;
   color: #f9fafb;
+  text-align: center;
 }
 /* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
    left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
@@ -580,43 +594,50 @@ const router = useRouter()
   height: 123px;
   flex-shrink: 0;
 }
+/* STEP 라벨·설명은 원본이 글자 폭 기준으로 좌표를 잡아 알약 중심과 최대 70px 까지
+   어긋나 있었다. 알약 중심(313 / 941 / 1568)에 폭 420 상자를 두고 가운데 정렬한다. */
 .step1Ask {
+  left: 103px;
+  width: 420px;
+  text-align: center;
   position: absolute;
   top: 3636px;
-  left: calc(50% - 732px);
   font-size: var(--font-body-02);
   line-height: 45px;
   font-family: 'Gmarket Sans';
   color: #005dff;
-  text-align: left;
   flex-shrink: 0;
 }
 .step2Analyze {
+  left: 731px;
+  width: 420px;
+  text-align: center;
   position: absolute;
   top: 3636px;
-  left: calc(50% - 143px);
   font-size: var(--font-body-02);
   line-height: 45px;
   font-family: 'Gmarket Sans';
   color: #005dff;
-  text-align: left;
   flex-shrink: 0;
 }
 .step3Verify {
+  left: 1358px;
+  width: 420px;
+  text-align: center;
   position: absolute;
   top: 3636px;
-  left: calc(50% + 498px);
   font-size: var(--font-body-02);
   line-height: 45px;
   font-family: 'Gmarket Sans';
   color: #005dff;
-  text-align: left;
   flex-shrink: 0;
 }
 .b15 {
+  left: 103px;
+  width: 420px;
+  text-align: center;
   position: absolute;
   top: 3733px;
-  left: calc(50% - 815px);
   line-height: 45px;
   color: #9ca3af;
   flex-shrink: 0;
@@ -625,20 +646,21 @@ const router = useRouter()
    left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
    건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
 .ai4 {
+  left: 731px;
+  width: 420px;
+  text-align: center;
   position: absolute;
   top: 3733px;
-  left: 0px;
-  right: 0px;
-  width: fit-content;
-  margin-inline: auto;
   line-height: 45px;
   color: #9ca3af;
   flex-shrink: 0;
 }
 .b16 {
+  left: 1358px;
+  width: 420px;
+  text-align: center;
   position: absolute;
   top: 3733px;
-  left: calc(50% + 405px);
   line-height: 45px;
   color: #9ca3af;
   flex-shrink: 0;
