@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>어원 수질 API 연동</title>
+
+<style>
+  :root {
+    --ground: #f6f8fc;
+    --surface: #ffffff;
+    --inset: #eef3fa;
+    --ink: #101b2b;
+    --ink-2: #4a5a70;
+    --ink-3: #7c8ba1;
+    --line: #dae2ee;
+    --line-strong: #b9c6d8;
+    --accent: #0053e3;
+    --accent-soft: #e3ecff;
+    --critical: #c22a20;
+    --critical-soft: #fce8e6;
+    --warn: #a86504;
+    --warn-soft: #fdf0da;
+    --good: #11803d;
+    --good-soft: #e0f5e8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0b1220;
+      --surface: #131c2b;
+      --inset: #1a2536;
+      --ink: #e6ecf6;
+      --ink-2: #a6b4c8;
+      --ink-3: #76879f;
+      --line: #253244;
+      --line-strong: #3a4a60;
+      --accent: #6da7ff;
+      --accent-soft: #17294a;
+      --critical: #ff8b82;
+      --critical-soft: #3a1d1b;
+      --warn: #e8a63f;
+      --warn-soft: #3a2a12;
+      --good: #52d183;
+      --good-soft: #123425;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0b1220;
+    --surface: #131c2b;
+    --inset: #1a2536;
+    --ink: #e6ecf6;
+    --ink-2: #a6b4c8;
+    --ink-3: #76879f;
+    --line: #253244;
+    --line-strong: #3a4a60;
+    --accent: #6da7ff;
+    --accent-soft: #17294a;
+    --critical: #ff8b82;
+    --critical-soft: #3a1d1b;
+    --warn: #e8a63f;
+    --warn-soft: #3a2a12;
+    --good: #52d183;
+    --good-soft: #123425;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+      Pretendard, "Malgun Gothic", "Noto Sans KR", sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    word-break: keep-all;
+  }
+
+  .page {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 2.5rem) 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(2.75rem, 5vw, 4rem);
+  }
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 2px solid var(--line-strong);
+  }
+  .stamp {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--ink-3);
+  }
+  .stamp span:first-child { color: var(--accent); }
+  .stamp i { flex: 1; height: 1px; background: var(--line); font-style: normal; }
+  h1 {
+    font-size: clamp(1.85rem, 4.6vw, 2.7rem);
+    line-height: 1.22;
+    font-weight: 750;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .lede {
+    font-size: clamp(1rem, 2vw, 1.1rem);
+    color: var(--ink-2);
+    max-width: 48ch;
+    margin: 0;
+  }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
+  .tile {
+    background: var(--surface);
+    padding: 1.15rem 1.25rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .tile dt {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ink-3);
+  }
+  .tile dd {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile p { margin: 0; font-size: 0.85rem; color: var(--ink-2); line-height: 1.5; }
+  .t-good dd { color: var(--good); }
+  .t-warn dd { color: var(--warn); }
+
+  section { display: flex; flex-direction: column; gap: 1.5rem; }
+  .sect-head { display: flex; flex-direction: column; gap: 0.4rem; }
+  .eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+  }
+  h2 {
+    font-size: clamp(1.3rem, 2.6vw, 1.55rem);
+    font-weight: 700;
+    letter-spacing: -0.018em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .sect-head p { margin: 0; color: var(--ink-2); max-width: 58ch; font-size: 0.95rem; }
+
+  .items { border-top: 1px solid var(--line-strong); }
+  .item {
+    display: grid;
+    grid-template-columns: 8.5rem 1fr;
+    gap: 0 1.5rem;
+    padding: 1.6rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .item-aside { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+  .item-body { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+  .item h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    line-height: 1.45;
+  }
+  .item p { margin: 0; color: var(--ink-2); font-size: 0.95rem; }
+  .item p strong { color: var(--ink); font-weight: 650; }
+
+  .chip {
+    display: inline-block;
+    padding: 0.22rem 0.6rem;
+    border-radius: 3px;
+    font-size: 0.73rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .c-warn { background: var(--warn-soft); color: var(--warn); }
+  .c-info { background: var(--accent-soft); color: var(--accent); }
+  .c-good { background: var(--good-soft); color: var(--good); }
+
+  .evidence {
+    background: var(--inset);
+    border-left: 2px solid var(--line-strong);
+    padding: 0.8rem 1rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.79rem;
+    line-height: 1.75;
+    color: var(--ink-2);
+    white-space: pre;
+  }
+  .evidence b { color: var(--ink); font-weight: 650; }
+  .evidence .bad { color: var(--critical); font-weight: 650; }
+  .evidence .ok { color: var(--good); font-weight: 650; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--inset);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  .fix {
+    display: flex;
+    gap: 0.55rem;
+    align-items: baseline;
+    font-size: 0.95rem;
+    color: var(--ink);
+  }
+  .fix::before { content: "→"; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: 0.88rem; }
+  th, td {
+    text-align: left;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  thead th {
+    background: var(--inset);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.was { color: var(--critical); text-decoration: line-through; text-decoration-thickness: 1px; }
+  td.now { color: var(--good); }
+  td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; }
+  td.ok { color: var(--good); font-weight: 650; white-space: nowrap; }
+  td.left { color: var(--warn); font-weight: 650; white-space: nowrap; }
+
+  .done-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+  .done-list li {
+    display: grid;
+    grid-template-columns: 1.1rem 1fr;
+    gap: 0.7rem;
+    font-size: 0.95rem;
+    color: var(--ink-2);
+    align-items: baseline;
+  }
+  .done-list li::before { content: "✓"; color: var(--good); font-weight: 700; }
+  .done-list b { color: var(--ink); font-weight: 650; }
+
+  .footnote {
+    border-top: 1px solid var(--line);
+    padding-top: 1.5rem;
+    font-size: 0.85rem;
+    color: var(--ink-3);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  a { color: var(--accent); text-underline-offset: 0.2em; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  @media (max-width: 40rem) {
+    .item { grid-template-columns: 1fr; gap: 0.75rem 0; }
+    .item-aside { flex-direction: row; align-items: center; gap: 0.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="stamp"><span>어원 수질·폐수 데이터 API</span><i></i><span>2026-08-17 2차 전수조사</span></div>
+    <h1>연동은 끝났습니다. 남은 건 두 가지.</h1>
+    <p class="lede">
+      처음 넘긴 13건에 이어 2차로 요청한 3건 중 2건이 반영됐습니다.
+      화면 9개는 모두 실제 API로 돌고, 그동안 두었던 우회로도 전부 걷어냈습니다.
+      남은 것은 기준치 조회 한 건과 배포 시점의 CORS뿐입니다.
+    </p>
+  </header>
+
+  <dl class="tiles">
+    <div class="tile t-good">
+      <dt>백엔드 해결</dt>
+      <dd>14 / 16</dd>
+      <p>1차 13건 + 2차 3건 중. 전 항목 실제 호출로 확인.</p>
+    </div>
+    <div class="tile t-warn">
+      <dt>남은 요청</dt>
+      <dd>1건</dd>
+      <p>기준치 조회에 규모별 항목이 빠져 있음.</p>
+    </div>
+    <div class="tile">
+      <dt>배포 시</dt>
+      <dd>1건</dd>
+      <p>CORS에 배포 도메인 추가. 개발용 localhost는 열려 있음.</p>
+    </div>
+    <div class="tile t-good">
+      <dt>화면</dt>
+      <dd>9 / 9</dd>
+      <p>우회로 없이 서버 기능 그대로 사용.</p>
+    </div>
+  </dl>
+
+  <section>
+    <div class="sect-head">
+      <div class="eyebrow">2차 요청 결과</div>
+      <h2>넘긴 3건 중 2건 반영</h2>
+    </div>
+
+    <div class="items">
+
+      <article class="item">
+        <div class="item-aside"><span class="chip c-good">해결</span></div>
+        <div class="item-body">
+          <h3>"매칭 없음"을 기록할 수 있게 됐습니다</h3>
+          <p>
+            <code>verdict</code>에 예약어 <code>no_match</code>가 생겼습니다. 어떤 표준 용어에도
+            해당하지 않는 컬럼을 <strong>확정 처리</strong>할 수 있어, 영구 대기 상태로 남던 문제가 사라졌습니다.
+          </p>
+          <div class="evidence">POST /reviews/4/verdict {"verdict":"no_match"}  → <span class="ok">200</span>
+재매핑 → 시료구분 unmapped 유지 · <b>대기 검수 0건</b> · 자동매핑률 90%</div>
+          <div class="fix">용어 확인 화면의 "건너뛰기"를 <strong>"매칭 없음"</strong>으로 바꿔 실제 판정을 보냅니다.</div>
+        </div>
+      </article>
+
+      <article class="item">
+        <div class="item-aside"><span class="chip c-good">해결</span></div>
+        <div class="item-body">
+          <h3>스펙 표기가 응답과 일치합니다</h3>
+          <p>
+            <code>FileResponse</code>·<code>ReviewResponse</code>·<code>MappingResponse</code> 등
+            8개 스키마가 snake_case로 정정됐습니다. <strong>camelCase 필드 0개</strong> —
+            이제 스펙에서 타입을 생성해도 깨지지 않습니다.
+          </p>
+          <div class="evidence">스펙  <span class="bad">sizeBytes, contentType, appliedToDictionary</span>   ← 이전
+스펙  <span class="ok">size_bytes, content_type, applied_to_dictionary</span>  ← 지금 (응답과 동일)</div>
+        </div>
+      </article>
+
+      <article class="item">
+        <div class="item-aside"><span class="chip c-good">해결</span></div>
+        <div class="item-body">
+          <h3><code>conditions</code> 타입이 통일됐습니다</h3>
+          <p>목록·상세 모두 객체로 옵니다. 문자열/객체를 분기하던 코드가 필요 없어졌습니다(호환을 위해 둘 다 받는 구현은 유지).</p>
+        </div>
+      </article>
+
+      <article class="item">
+        <div class="item-aside"><span class="chip c-warn">남음</span></div>
+        <div class="item-body">
+          <h3>기준치 조회에 규모별 항목이 빠져 있습니다</h3>
+          <p>
+            <code>/standards</code>는 36항목이라고 하는데 <code>/standards/limits</code>는
+            <strong>12건만</strong> 돌려줍니다. 총질소·총인·수소이온농도뿐이고
+            <strong>BOD·COD·부유물질이 없습니다.</strong>
+          </p>
+          <p>
+            분석 응답에서는 BOD 상한 80이 <code>scale: "small"</code>과 함께 오는 걸 보면 규모별 기준으로 보이는데,
+            이 엔드포인트에는 <code>scale</code> 파라미터가 없습니다.
+          </p>
+          <div class="evidence">GET /standards           → item_count <b>36</b>, scales: [large, small]
+GET /standards/limits    → <span class="bad">12건</span> (WQ-005 · WQ-006 · WQ-008 × 4개 지역)
+POST /analyses           → WQ-001 limit_max 80 (<b>scale: small</b>)</div>
+          <div class="fix"><code>scale</code> 파라미터를 받아 규모별 기준까지 돌려주세요. 기준치 화면을 만들 때 필요합니다.</div>
+        </div>
+      </article>
+
+      <article class="item">
+        <div class="item-aside"><span class="chip c-info">배포 시</span></div>
+        <div class="item-body">
+          <h3>CORS에 배포 도메인 추가</h3>
+          <p><code>localhost:5173</code>은 preflight까지 정상입니다. 배포 도메인만 허용 목록에 넣으면 됩니다.</p>
+          <div class="evidence">Origin: http://localhost:5173      → <span class="ok">허용</span>
+Origin: https://(배포 도메인)      → <span class="bad">아직 허용 안 됨</span></div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sect-head">
+      <div class="eyebrow">회귀 확인</div>
+      <h2>1차에 고친 것들이 그대로인지</h2>
+      <p>엔드포인트 23개, 오류 응답 6종을 다시 호출해 확인했습니다.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>항목</th><th>상태</th><th>확인 내용</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>검수 → 매핑 반영</td><td class="ok">유지</td><td><code>via: review</code> · 75→100%</td></tr>
+          <tr><td>분석 조회에 집계 결과</td><td class="ok">유지</td><td><code>series</code>·<code>limits</code>·<code>assumptions</code></td></tr>
+          <tr><td>용어 코드 → 이름 / 검색</td><td class="ok">유지</td><td><code>/dictionary/terms</code> 양방향</td></tr>
+          <tr><td>원본 측정 행</td><td class="ok">유지</td><td><code>/analyses/{id}/measurements</code></td></tr>
+          <tr><td>파일별 기간 · 목록 필드</td><td class="ok">유지</td><td><code>measured_from/to</code>·<code>auto_mapped_rate</code></td></tr>
+          <tr><td>적재 멱등성</td><td class="ok">유지</td><td>재적재해도 값 그대로</td></tr>
+          <tr><td>검수행 중복</td><td class="ok">유지</td><td>재매핑해도 행 수 유지</td></tr>
+          <tr><td>오류 처리</td><td class="ok">유지</td><td>400·404·415·422 + 코드·상세</td></tr>
+          <tr><td>기준치 실데이터</td><td class="ok">유지</td><td><code>source: law</code> · 36항목 · 미검증 0</td></tr>
+          <tr><td>하한 기준(<code>limit_min</code>)</td><td class="ok">유지</td><td>pH 5.8~8.6 · "하한 미달" 판정</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sect-head">
+      <div class="eyebrow">프론트엔드</div>
+      <h2>이번에 맞춘 것</h2>
+    </div>
+
+    <ul class="done-list">
+      <li><b>"건너뛰기" → "매칭 없음"</b> — 서버에 기록할 방법이 없어 화면에서만 넘기던 동작을 실제 <code>no_match</code> 판정으로 바꿨습니다. 로컬 상태를 통째로 제거했고, 배지도 <em>매칭 없음 확인</em>(판정 완료)과 <em>매칭 없음</em>(미확인)으로 구분합니다.</li>
+      <li><b>적재 단계 연결</b> — 업로드 후 확인할 컬럼이 없으면 바로 적재하고, 검수를 마치면 재매핑 후 적재합니다. 이 단계가 빠져 있어 분석 화면이 계속 비어 있었습니다.</li>
+      <li><b>기간 안내</b> — 조건 화면이 데이터가 있는 기간을 보여주고, 그 밖을 고르면 분석 전에 경고합니다. 빈 그래프의 가장 흔한 원인이었습니다.</li>
+      <li><b>레이아웃 정리</b> — 디자인 시안의 짧은 더미값에 맞춰 고정폭으로 박혀 있던 자리들을 내용에 맞게 고쳤습니다(조건 칩·규칙 버전 알약·미리보기 빈 행·기간 안내 줄바꿈·랜딩 카드 중앙 정렬).</li>
+    </ul>
+  </section>
+
+  <div class="footnote">
+    <div>모든 항목은 <code>http://100.62.74.158</code>에 직접 호출해 확인했고, 화면은 헤드리스 Chrome을 CDP로 조작해 검수 제출·매칭 없음 판정·용어 검색까지 재현했습니다.</div>
+    <div>
+      테스트 데이터가 쌓였습니다 — 파일 <b>13건</b>(<code>01-정상.csv</code> 4개, <code>ui-review.csv</code>·<code>ui-test.csv</code> 각 2개 중복 포함),
+      검수 6건, 분석 이력 27건, 측정값 194건. 정리 부탁드립니다.
+      <code>347981821a30f6…csv</code>(id 11)는 매핑되지 않은 채 남아 있는데 어떻게 올라온 파일인지 확인이 필요합니다.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
