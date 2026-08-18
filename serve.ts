@@ -1,7 +1,7 @@
 import { serveDir } from '@std/http/file-server'
 
 // 백엔드 주소. 배포 환경에서 BACKEND_ORIGIN 으로 덮어쓴다.
-const BACKEND = Deno.env.get('BACKEND_ORIGIN') ?? 'http://100.62.74.158'
+const BACKEND = Deno.env.get('BACKEND_ORIGIN') ?? 'http://1.201.116.24'
 const PORT = Number(Deno.env.get('PORT') ?? 8000)
 
 /**
