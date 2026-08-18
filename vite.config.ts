@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 // 백엔드 주소. 다른 서버를 보려면 VITE_BACKEND_ORIGIN 으로 덮어쓴다.
-const BACKEND = process.env.VITE_BACKEND_ORIGIN ?? 'http://100.62.74.158'
+const BACKEND = process.env.VITE_BACKEND_ORIGIN ?? 'http://1.201.116.24'
 
 // https://vite.dev/config/
 export default defineConfig({
