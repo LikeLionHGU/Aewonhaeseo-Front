@@ -2,8 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import wordmark from '../assets/wordmark.svg'
-import profileIcon from '../assets/profile.svg'
 import checkIcon from '../assets/check.svg'
+import AccountMenu from '../components/AccountMenu.vue'
 import { useDesignScale } from '../composables/useDesignScale'
 import {
   ApiError,
@@ -379,7 +379,7 @@ onMounted(load)
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
-    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
+    <AccountMenu />
     <b :class="$style.b2">용어 확인</b>
     <b :class="$style.ai">AI가 정확히 판단하기 어려운 항목만 모았어요. <br/>실제 데이터와 용어를 확인하고 맞는 항목을 선택해주세요.</b>
 
@@ -584,15 +584,6 @@ onMounted(load)
   font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
-}
-/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
-.profile {
-  position: absolute;
-  top: 76px;
-  left: 1822px;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
 }
 .b2 {
   position: absolute;

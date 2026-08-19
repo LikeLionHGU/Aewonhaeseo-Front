@@ -1,7 +1,11 @@
 import { serveDir } from '@std/http/file-server'
 
 // 백엔드 주소. 배포 환경에서 BACKEND_ORIGIN 으로 덮어쓴다.
-const BACKEND = Deno.env.get('BACKEND_ORIGIN') ?? 'http://1.201.116.24'
+//
+// https 여야 한다. 이 서버가 https 로 서빙되는데 백엔드를 http 로 부르면 중계
+// 구간만 평문이 되고, 인증 쿠키(Secure)가 오가는 경로라 그대로 두면 안 된다.
+// sslip.io 호스트명으로 IP 서버에 Let's Encrypt 인증서가 붙어 있다.
+const BACKEND = Deno.env.get('BACKEND_ORIGIN') ?? 'https://1-201-116-24.sslip.io'
 const PORT = Number(Deno.env.get('PORT') ?? 8000)
 
 /**
@@ -32,6 +36,28 @@ function forwardHeaders(source: Headers) {
 }
 
 /**
+ * 로컬에서 프로덕션 빌드를 미리 볼 때만 인증 쿠키의 Secure 를 뗀다.
+ *
+ * 백엔드는 AWON_ACCESS_TOKEN 을 Secure 로 내려준다. https 로 배포하면 그대로
+ * 두는 게 맞다. 그런데 `deno run -A serve.ts` 로 로컬에서 열어 보면 평문
+ * http://localhost 라서, WebKit(사파리·Orion)은 그 쿠키를 조용히 버린다.
+ * 그러면 로그인이 200 인데도 세션이 남지 않아 새로고침하면 로그인 화면으로
+ * 돌아간다(2026-08-19 확인). 크롬은 localhost 를 신뢰 출처로 봐서 티가 안 난다.
+ *
+ * 조건을 localhost 평문으로 좁혀 뒀다. 배포 주소는 호스트명이 다르므로 절대
+ * 여기 걸리지 않는다 — 즉 실서비스의 Secure 가 실수로 벗겨질 일은 없다.
+ * TLS 를 앞단에서 끊는 구성도 호스트명이 localhost 가 아니라 안전하다.
+ */
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+
+function relaxCookieForLocalPreview(headers: Headers, url: URL) {
+  if (url.protocol !== 'http:' || !LOCAL_HOSTS.has(url.hostname)) return
+  const cookie = headers.get('set-cookie')
+  if (!cookie) return
+  headers.set('set-cookie', cookie.replace(/;\s*Secure/gi, ''))
+}
+
+/**
  * API 요청을 백엔드로 넘긴다.
  *
  * 프론트를 같은 출처로 서빙하면 브라우저가 CORS 를 따지지 않아 백엔드에
@@ -53,6 +79,7 @@ async function proxyToBackend(req: Request, url: URL) {
     const headers = forwardHeaders(upstream.headers)
     // fetch 가 이미 압축을 풀어 주므로 원본 인코딩 헤더를 남기면 안 된다.
     headers.delete('content-encoding')
+    relaxCookieForLocalPreview(headers, url)
     return new Response(upstream.body, { status: upstream.status, headers })
   } catch (error) {
     console.error(`[proxy] ${req.method} ${target} 실패:`, error)

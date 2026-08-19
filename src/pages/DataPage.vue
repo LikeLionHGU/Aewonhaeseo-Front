@@ -2,8 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import wordmark from '../assets/wordmark.svg'
-import profileIcon from '../assets/profile.svg'
 import checkIcon from '../assets/check.svg'
+import AccountMenu from '../components/AccountMenu.vue'
 import { useDesignScale } from '../composables/useDesignScale'
 import { ApiError, listFiles } from '../api'
 import type { FileItem } from '../api'
@@ -250,7 +250,7 @@ onMounted(load)
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
-    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
+    <AccountMenu />
     <b :class="$style.b3">내 데이터</b>
     <b :class="$style.b2">업로드한 파일과 용어 표준화 상태를 확인할 수 있어요.</b>
 
@@ -390,15 +390,6 @@ onMounted(load)
   font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
-}
-/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
-.profile {
-  position: absolute;
-  top: 76px;
-  left: 1822px;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
 }
 .b3 {
   position: absolute;

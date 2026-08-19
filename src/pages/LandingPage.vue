@@ -24,9 +24,7 @@ const router = useRouter()
     <b :class="$style.b2">이제 질문 한 줄이면<br/>충분합니다.</b>
     <div :class="$style.div2">복잡한 수질 데이터 취합부터 근거 확인까지, 질문 한 줄로 통계와 원본 출처를 한눈에.</div>
     <div :class="[$style.inner, 'btn', 'btn-fill']" @click="router.push('/main')" />
-    <div :class="$style.rectangleDiv" />
     <div :class="[$style.div3, 'btn-label']">지금 시작하기</div>
-    <div :class="$style.div4">기능 더 알아보기</div>
     <img :class="[$style.caAaca4862A5402b585a54a82eIcon, 'link']" :src="logo" alt="로고" @click="router.push('/')" />
     <div :class="$style.child2" />
     <b :class="$style.ai">질문부터 검증까지, 3개 AI 레이어의 정밀한 흐름.<br/>데이터 취합부터 출처 검증까지, 3단계로 완성되는 AI 분석.</b>
@@ -170,17 +168,6 @@ const router = useRouter()
   height: 64px;
   flex-shrink: 0;
 }
-.rectangleDiv {
-  position: absolute;
-  top: 783px;
-  left: 386px;
-  border-radius: 20px;
-  border: 2px solid #455772;
-  box-sizing: border-box;
-  width: 353px;
-  height: 64px;
-  flex-shrink: 0;
-}
 .div3 {
   position: absolute;
   width: 252px;
@@ -190,18 +177,6 @@ const router = useRouter()
   line-height: 64px;
   font-weight: 600;
   text-align: center;
-  flex-shrink: 0;
-}
-.div4 {
-  position: absolute;
-  text-align: center;
-  font-size: var(--font-body-02);
-  top: 783px;
-  left: 386px;
-  line-height: 64px;
-  font-weight: 600;
-  display: inline-block;
-  width: 353px;
   flex-shrink: 0;
 }
 .caAaca4862A5402b585a54a82eIcon {

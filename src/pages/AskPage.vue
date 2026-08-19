@@ -2,8 +2,8 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import wordmark from "../assets/wordmark.svg";
-import profileIcon from "../assets/profile.svg";
 import searchIcon from "../assets/search.png";
+import AccountMenu from "../components/AccountMenu.vue";
 import { useDesignScale } from "../composables/useDesignScale";
 import { useTermNames } from "../composables/useTermNames";
 import { listAnalyses, parseConditions } from "../api";
@@ -185,7 +185,7 @@ onMounted(loadHistory);
         <div :class="$style.do">금강 DO 전년 동기 대비 비교</div>
       </div>
       <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
-      <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
+      <AccountMenu />
       <b :class="$style.b8">최근 분석 기록</b>
       <div :class="$style.div4">전체 기록 보기 →</div>
       <div
@@ -505,16 +505,6 @@ onMounted(loadHistory);
   display: inline-block;
   width: 226px;
   height: 45px;
-}
-/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
-.profile {
-  position: absolute;
-  top: 76px;
-  left: 1822px;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
 }
 .b8 {
   position: absolute;

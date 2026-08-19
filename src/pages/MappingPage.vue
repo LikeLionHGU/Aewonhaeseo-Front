@@ -2,8 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import wordmark from '../assets/wordmark.svg'
-import profileIcon from '../assets/profile.svg'
 import checkIcon from '../assets/check.svg'
+import AccountMenu from '../components/AccountMenu.vue'
 import { useDesignScale } from '../composables/useDesignScale'
 import {
   ApiError,
@@ -236,7 +236,7 @@ onMounted(load)
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
-    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
+    <AccountMenu />
     <b :class="$style.csv2">엑셀 · CSV 파일 업로드</b>
     <b :class="$style.csv">기관에서 사용하는 엑셀·CSV 파일을 그대로 올려보세요.<br/>별도의 서식 정리 없이 바로 업로드할 수 있어요.</b>
 
@@ -385,15 +385,6 @@ onMounted(load)
   font-size: var(--font-body-02);
   font-weight: 500;
   color: #00559e;
-}
-/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
-.profile {
-  position: absolute;
-  top: 76px;
-  left: 1822px;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
 }
 .csv2 {
   position: absolute;
