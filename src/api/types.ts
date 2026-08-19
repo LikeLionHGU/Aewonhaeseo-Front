@@ -383,3 +383,31 @@ export interface AnalysisMeasurement {
   value_text: string
   is_numeric: boolean
 }
+
+// --- 인증 ---
+
+/**
+ * 로그인·회원가입·/auth/me 가 똑같이 돌려주는 사용자.
+ *
+ * 응답 본문에 토큰은 없다. 서버가 AWON_ACCESS_TOKEN 쿠키(HttpOnly, 8시간)로
+ * 내려주고 이후 요청에 브라우저가 자동으로 실어 보낸다.
+ */
+export interface AuthUser {
+  id: number
+  email: string
+  display_name: string
+  /** 확인된 값은 'ADMIN'. 일반 사용자 값은 아직 못 봐서 좁히지 않는다. */
+  role: string
+}
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface RegisterRequest {
+  email: string
+  /** 8~72자. 서버가 VALIDATION_FAILED 로 걸러낸다. */
+  password: string
+  display_name: string
+}

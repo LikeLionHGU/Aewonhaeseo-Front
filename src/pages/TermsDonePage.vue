@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import wordmark from '../assets/wordmark.svg'
-import profileIcon from '../assets/profile.svg'
+import AccountMenu from '../components/AccountMenu.vue'
 import { useDesignScale } from '../composables/useDesignScale'
 import { ApiError, getFile, getMappingRounds, listFiles, listReviews } from '../api'
 import type { FileItem, MappingRounds, ReviewItem } from '../api'
@@ -135,7 +135,7 @@ onMounted(load)
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div3">문의하기</div>
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
-    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
+    <AccountMenu />
 
     <!-- 완료 표시 — 원본은 빈 img 였다 -->
     <svg :class="$style.item" viewBox="0 0 144 144" role="img" aria-label="확인 완료">
@@ -213,15 +213,6 @@ onMounted(load)
   font-size: var(--font-body-02);
   font-weight: 500;
   text-align: left;
-}
-/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
-.profile {
-  position: absolute;
-  top: 76px;
-  left: 1822px;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
 }
 .item {
   position: absolute;

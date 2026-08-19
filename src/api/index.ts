@@ -4,6 +4,7 @@
 import { get, post, query, upload } from './client'
 import type {
   AnalysisDetail,
+  AuthUser,
   AnalysisMeasurement,
   AnalysisHistoryItem,
   AnalysisOptions,
@@ -22,6 +23,8 @@ import type {
   Page,
   ReviewItem,
   StandardLimit,
+  LoginRequest,
+  RegisterRequest,
   StandardSets,
   TermList,
   VerdictRequest,
@@ -31,6 +34,36 @@ export * from './types'
 export { ApiError } from './client'
 
 const V1 = '/api/v1'
+
+// --- 인증 ---
+//
+// 경로는 2026-08-19 에 실제 서버로 확인했다. 회원가입은 /auth/signup 이 아니라
+// /auth/register 다(/signup 은 404). 성공하면 서버가 AWON_ACCESS_TOKEN 쿠키를
+// 심어 주고 본문으로 사용자를 돌려준다 — 토큰은 본문에 없다.
+
+export function login(body: LoginRequest) {
+  return post<AuthUser>(`${V1}/auth/login`, body)
+}
+
+/** 가입과 동시에 로그인된다 — 로그인과 똑같이 쿠키가 발급된다. */
+export function register(body: RegisterRequest) {
+  return post<AuthUser>(`${V1}/auth/register`, body)
+}
+
+/** 지금 쿠키의 주인. 로그인 안 했으면 401 AUTH_REQUIRED. */
+export function getMe() {
+  return get<AuthUser>(`${V1}/auth/me`)
+}
+
+/**
+ * 쿠키를 지운다.
+ *
+ * 서버가 토큰을 무효화하지는 않는다(stateless). 이미 나간 토큰은 남은 8시간
+ * 동안 그대로 유효하다.
+ */
+export function logout() {
+  return post<{ logged_out: boolean }>(`${V1}/auth/logout`)
+}
 
 // --- 파일 ---
 

@@ -2,8 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import wordmark from '../assets/wordmark.svg'
-import profileIcon from '../assets/profile.svg'
 import dropdownIcon from '../assets/chevron-down.svg'
+import AccountMenu from '../components/AccountMenu.vue'
 import { useDesignScale } from '../composables/useDesignScale'
 import { useTermNames } from '../composables/useTermNames'
 import { ApiError, getAnalysisOptions, getStandardSets, runAnalysis } from '../api'
@@ -354,7 +354,7 @@ onMounted(load)
     </div>
     <div :class="$style.child4" />
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
-    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
+    <AccountMenu />
     <div :class="[$style.div22, 'link']" @click="router.push('/data')">내 데이터</div>
     <div :class="[$style.div23, 'link']" @click="router.push('/ask')">분석하기</div>
     <div :class="$style.div24">문의하기</div>
@@ -1056,16 +1056,6 @@ onMounted(load)
   background-color: #d9d9d9;
   width: 2120px;
   height: 171px;
-  flex-shrink: 0;
-}
-/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
-.profile {
-  position: absolute;
-  top: 76px;
-  left: 1822px;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
   flex-shrink: 0;
 }
 .div22 {

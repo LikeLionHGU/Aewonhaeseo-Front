@@ -2,9 +2,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import wordmark from '../assets/wordmark.svg'
-import profileIcon from '../assets/profile.svg'
 import uploadIcon from '../assets/upload.svg'
 import analyzeIcon from '../assets/analyze.svg'
+import AccountMenu from '../components/AccountMenu.vue'
 import { useDesignScale } from '../composables/useDesignScale'
 
 const DESIGN_WIDTH = 1920
@@ -35,7 +35,7 @@ function connectSampleData() {
     <div :class="$style.bod">“작년 인천 지점 BOD 월별 추이 보여줘"<br/>궁금한 내용을 입력하면, 근거와 함께 분석 결과를 확인할 수 있어요.</div>
     <img :class="$style.child2" :src="analyzeIcon" alt="" />
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
-    <img :class="$style.profile" :src="profileIcon" alt="내 프로필" />
+    <AccountMenu />
     <div :class="[$style.rectangleParent, 'btn']" role="button" @click="router.push('/upload')">
       <div :class="[$style.groupChild, 'btn-fill']" />
       <div :class="$style.csv2">엑셀·CSV 업로드</div>
@@ -184,15 +184,6 @@ function connectSampleData() {
   left: 1247px;
   width: 45px;
   height: 45px;
-}
-/* 프로필 자리 — 헤더 세로중심 100, 오른쪽 여백 50px */
-.profile {
-  position: absolute;
-  top: 76px;
-  left: 1822px;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
 }
 .rectangleParent {
   position: absolute;

@@ -1,22 +1,68 @@
 // 백엔드 호출의 공통 부분 — 주소 조립, 쿼리 인코딩, 에러 변환.
 
 // 기본값을 빈 문자열로 두면 같은 출처로 요청이 나가고, 개발 중에는
-// vite.config.ts 의 프록시가 /api 를 백엔드로 넘긴다. 백엔드에 CORS 가
-// 설정돼 있지 않아서(2026-08-16 확인) 브라우저에서 직접 부르면 전부 막힌다.
-// 배포 환경에서 출처가 갈리면 VITE_API_BASE 로 덮어쓴다.
+// vite.config.ts 의 프록시가 /api 를 백엔드로 넘긴다.
+//
+// 백엔드에 CORS 허용 목록이 생겼지만(2026-08-19 확인) http://localhost:5173
+// 하나뿐이다. 배포 환경에서 출처가 갈리면 VITE_API_BASE 로 덮어쓰되, 그 출처를
+// 백엔드 허용 목록에 넣고 인증 쿠키가 오가야 하니 credentials 도 함께 열어야 한다.
 const BASE = import.meta.env.VITE_API_BASE ?? ''
 
 /** 서버가 {"error":{"code","message"}} 로 내려주는 실패 응답. */
 export class ApiError extends Error {
   status: number
   code: string
+  /**
+   * VALIDATION_FAILED 일 때 어느 칸이 틀렸는지 — {"password":"size must be ..."}.
+   *
+   * 키가 camelCase 로 온다(요청은 display_name, 응답은 displayName). 화면에서
+   * 입력칸에 붙일 때 그대로 쓰지 말고 변환해야 한다.
+   */
+  detail?: Record<string, string>
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, detail?: Record<string, string>) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.detail = detail
   }
+}
+
+/**
+ * 401 을 만났을 때 부를 곳 — 세션을 비우고 로그인 화면으로 보낸다.
+ *
+ * 쿠키는 8시간짜리라 화면을 열어 둔 채 만료될 수 있다. 그때 각 화면이 알아서
+ * 처리하게 두면 화면마다 제각각이 되므로 여기 한 곳에서 알린다.
+ *
+ * 처리 내용을 여기 직접 쓰지 않고 밖에서 꽂게 한 이유는 순환 참조 때문이다 —
+ * useAuth 와 router 가 모두 이 파일에 의존한다(useAuth → api → client).
+ * 실제 연결은 main.ts 가 한다.
+ */
+type UnauthorizedHandler = () => void
+
+let onUnauthorized: UnauthorizedHandler | null = null
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler) {
+  onUnauthorized = handler
+}
+
+/**
+ * 인증 엔드포인트의 401 은 실패가 아니라 정상적인 답이다.
+ *
+ *   /auth/me    로그인하지 않았다는 뜻 — 가드가 이걸로 판단한다
+ *   /auth/login 비밀번호가 틀렸다는 뜻 — 로그인 화면이 문구를 띄운다
+ *
+ * 이것까지 세션 만료로 처리하면 로그인 화면에서 로그인 화면으로 되돌리는
+ * 뜀박질이 생긴다.
+ */
+function isAuthPath(path: string) {
+  return path.includes('/auth/')
+}
+
+function notifyUnauthorized(status: number, path: string) {
+  if (status !== 401 || isAuthPath(path)) return
+  onUnauthorized?.()
 }
 
 type QueryValue = string | number | boolean | undefined | null
@@ -40,18 +86,24 @@ export function query(params: Record<string, QueryValue>) {
 async function toError(res: Response, body: unknown) {
   // 스프링 밖에서 끊긴 요청(톰캣 400 등)은 JSON 이 아니라 HTML 로 온다.
   if (body && typeof body === 'object' && 'error' in body) {
-    const detail = (body as { error: { code?: string; message?: string } }).error
+    const error = (body as {
+      error: { code?: string; message?: string; detail?: Record<string, string> }
+    }).error
     return new ApiError(
       res.status,
-      detail.code ?? 'UNKNOWN',
-      detail.message ?? res.statusText,
+      error.code ?? 'UNKNOWN',
+      error.message ?? res.statusText,
+      error.detail,
     )
   }
   return new ApiError(res.status, 'HTTP_ERROR', `${res.status} ${res.statusText}`)
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init)
+  // 인증이 AWON_ACCESS_TOKEN 쿠키로 오간다. 같은 출처(개발 중 프록시)면 기본값
+  // 으로도 실리지만, VITE_API_BASE 로 출처가 갈리는 배포에서는 include 라야
+  // 쿠키가 붙는다. 그때는 백엔드도 허용 출처 + credentials 를 열어야 한다.
+  const res = await fetch(`${BASE}${path}`, { credentials: 'include', ...init })
 
   // 먼저 문자열로 받는다. 본문이 비어 있거나 HTML 일 때 JSON 파싱이
   // 터지면서 진짜 상태 코드를 가려버리는 걸 막는다.
@@ -65,7 +117,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
   }
 
-  if (!res.ok) throw await toError(res, body)
+  if (!res.ok) {
+    notifyUnauthorized(res.status, path)
+    throw await toError(res, body)
+  }
   return body as T
 }
 
@@ -99,6 +154,8 @@ export function upload<T>(
 
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${BASE}${path}`)
+    // 위 request() 와 같은 이유 — 업로드도 로그인 쿠키를 달고 나가야 한다.
+    xhr.withCredentials = true
 
     if (onProgress) {
       xhr.upload.addEventListener('progress', (event) => {
@@ -119,6 +176,7 @@ export function upload<T>(
         resolve(body as T)
         return
       }
+      notifyUnauthorized(xhr.status, path)
       if (body && typeof body === 'object' && 'error' in body) {
         const detail = (body as { error: { code?: string; message?: string } }).error
         reject(new ApiError(xhr.status, detail.code ?? 'UNKNOWN', detail.message ?? '업로드 실패'))
