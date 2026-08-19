@@ -141,6 +141,10 @@ const listHeight = computed(() => 99 + Math.max(1, entries.value.length) * LIST_
 const designHeight = computed(() =>
   Math.max(BASE_HEIGHT, 971 + listHeight.value + 300),
 )
+/* 푸터 띠. 원본은 2650px 에 박혀 있어서, 확인할 컬럼이 열세 개를 넘으면 목록이
+   띠를 뚫고 내려가 글자가 회색 띠 위에 겹쳐 찍혔다. 항상 캔버스 바닥에 붙인다. */
+const FOOTER_H = 244
+const footerTop = computed(() => designHeight.value - FOOTER_H)
 
 // --- 오른쪽 상세 ---
 
@@ -420,9 +424,11 @@ onMounted(load)
       <div v-for="top in listDividers" :key="top" :class="$style.listDivider" :style="{ top: `${top}px` }" />
       <template v-for="(entry, i) in entries" :key="entry.raw">
         <b :class="[$style.listName, 'link']"
-           :style="{ top: `${itemTop(i) + 20}px`, left: `${LIST_LEFT}px` }" @click="selected = i">{{ entry.raw }}</b>
+           :style="{ top: `${itemTop(i) + 20}px`, left: `${LIST_LEFT}px` }"
+           :title="entry.raw" @click="selected = i">{{ entry.raw }}</b>
         <div :class="[$style.listFile, 'link']"
-             :style="{ top: `${itemTop(i) + 56}px`, left: `${LIST_LEFT}px` }" @click="selected = i">{{ file?.filename }}</div>
+             :style="{ top: `${itemTop(i) + 56}px`, left: `${LIST_LEFT}px` }"
+             :title="file?.filename" @click="selected = i">{{ file?.filename }}</div>
         <div :class="$style.badge" :style="{ top: `${itemTop(i) + 33}px`, left: `${LIST_BADGE_LEFT}px` }">
           <div :class="{
             [$style.badgeBgLow]: badgeOf(entry).kind === 'low',
@@ -444,7 +450,7 @@ onMounted(load)
     <b :class="$style.b25">이 컬럼은 무엇인가요?</b>
 
     <template v-if="current">
-      <b :class="$style.b3">{{ current.raw }}</b>
+      <b :class="$style.b3" :title="current.raw">{{ current.raw }}</b>
       <div :class="$style.xlsxC">{{ detailMeta }}</div>
 
       <!-- 실제 값 미리보기 -->
@@ -456,19 +462,21 @@ onMounted(load)
            :style="{ left: `${PREVIEW_LEFTS[previewWindow.targetSlot] - 52}px`,
                      height: `${previewHighlightHeight}px` }" />
       <b v-for="(header, c) in previewWindow.headers" :key="header" :class="$style.previewHead"
-         :style="{ left: `${PREVIEW_LEFTS[c]}px` }">{{ header }}</b>
+         :style="{ left: `${PREVIEW_LEFTS[c]}px` }" :title="header">{{ header }}</b>
       <div v-for="top in previewDividers" :key="top" :class="$style.previewDivider" :style="{ top: `${top}px` }" />
       <template v-for="(row, r) in previewWindow.rows" :key="r">
         <div v-for="(value, c) in row" :key="c" :class="$style.previewCell"
-             :style="{ top: `${PREVIEW_ROW_TOPS[r]}px`, left: `${PREVIEW_LEFTS[c]}px` }">{{ value }}</div>
+             :style="{ top: `${PREVIEW_ROW_TOPS[r]}px`, left: `${PREVIEW_LEFTS[c]}px` }"
+             :title="value">{{ value }}</div>
       </template>
       <div :class="$style.previewFooterBg" :style="{ top: `${1738 + previewShift}px` }" />
-      <b :class="$style.b14" :style="{ top: `${1771 + previewShift}px` }">{{ valueNote }}</b>
+      <b :class="$style.b14" :style="{ top: `${1771 + previewShift}px` }" :title="valueNote">{{ valueNote }}</b>
 
       <!-- 추천 용어 -->
       <b :class="$style.b26" :style="{ top: `${1908 + previewShift}px` }">추천 용어</b>
       <div :class="$style.suggestCard" :style="{ top: `${1973 + previewShift}px` }" />
-      <b :class="$style.b4" :style="{ top: `${2021 + previewShift}px` }">{{ suggestionName }}</b>
+      <b :class="$style.b4" :style="{ top: `${2021 + previewShift}px` }"
+         :title="suggestionName">{{ suggestionName }}</b>
       <div v-if="hasSuggestion" :class="$style.badge"
            :style="{ top: `${2025 + previewShift}px`, left: '1579px' }">
         <div :class="$style.badgeBgConfidence" />
@@ -512,14 +520,14 @@ onMounted(load)
       </div>
 
       <div v-if="submitError" :class="$style.submitError"
-           :style="{ top: `${2255 + previewShift}px` }">{{ submitError }}</div>
+           :style="{ top: `${2178 + previewShift}px` }" :title="submitError">{{ submitError }}</div>
     </template>
 
     <div v-else-if="!loading" :class="$style.detailNotice">
       {{ loadError || '왼쪽 목록에서 확인할 컬럼을 골라주세요.' }}
     </div>
 
-    <div :class="$style.child19" />
+    <div :class="$style.child19" :style="{ top: `${footerTop}px` }" />
     <div :class="[$style.div17, 'link']" @click="router.push('/mapping')">←</div>
   </div>
   </div>
@@ -727,9 +735,13 @@ onMounted(load)
   position: absolute;
   top: 785px;
   left: 103px;
+  width: 1720px;
   font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* ── 확인 필요 목록 ─────────────────────────── */
 .listCard {
@@ -859,13 +871,17 @@ onMounted(load)
   width: 159.2px;
   height: 37px;
 }
+/* 원본은 폭 108.8px 고정이라 '매칭 없음 확인'·'확신도 100%' 가 두 줄로 쪼개져
+   배지 밖 아래로 흘러나왔다. 배지 안쪽을 다 쓰고 한 줄로 둔다. */
 .badgeLabel {
   position: absolute;
   top: 0px;
-  left: 25.19px;
+  left: 8px;
+  right: 8px;
   line-height: 45px;
-  display: inline-block;
-  width: 108.8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .badgeLabelLow {
   color: #bc6900;
@@ -902,9 +918,13 @@ onMounted(load)
   position: absolute;
   top: 1090px;
   left: calc(50% - 256px);
+  width: 1130px;
   font-size: var(--font-body-01);
   line-height: 54px;
   color: #0053e3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .xlsxC {
   position: absolute;
@@ -1010,13 +1030,18 @@ onMounted(load)
   width: 1102px;
   height: 99px;
 }
+/* 예시값은 원본 셀 내용이라 길이를 예측할 수 없다. 원본 폭(718)에서는 두 줄이
+   되며 카드 바닥 띠(1738~1837) 밖으로 흘러나왔다. 띠 안쪽을 다 쓰고 자른다. */
 .b14 {
   position: absolute;
   line-height: 36px;
   top: 1771px;
   left: 802px;
   display: inline-block;
-  width: 718px;
+  width: 980px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .b26 {
   position: absolute;
@@ -1040,9 +1065,13 @@ onMounted(load)
   position: absolute;
   top: 2021px;
   left: calc(50% - 200px);
+  width: 800px;
   font-size: var(--font-body-01);
   line-height: 54px;
   color: #0053e3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .div16 {
   position: absolute;
@@ -1183,18 +1212,22 @@ onMounted(load)
   padding: 12px 18px;
   font-weight: 500;
 }
+/* 원본 좌표(2255)는 액션 버튼 줄(2223~2279) 한가운데라 버튼 위에 글자가 겹쳐
+   찍혔다. 추천 카드(~2172)와 버튼 사이에 한 줄로 넣는다. */
 .submitError {
   position: absolute;
-  top: 2255px;
+  top: 2178px;
   left: 704px;
   width: 1100px;
-  line-height: 44px;
+  line-height: 40px;
   font-weight: 600;
   color: #d92d20;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .child19 {
   position: absolute;
-  top: 2650px;
   left: -100px;
   background-color: #f3f3f3;
   width: 2120px;

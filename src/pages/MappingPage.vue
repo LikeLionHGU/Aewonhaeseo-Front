@@ -257,7 +257,7 @@ onMounted(load)
          불러오는 중이거나 실패한 사정은 표 자리에서 한 줄로 알린다. -->
     <template v-if="!loading && !loadError">
       <div :class="$style.alertCard" />
-      <b :class="$style.xlsx">{{ alertTitle }}</b>
+      <b :class="$style.xlsx" :title="alertTitle">{{ alertTitle }}</b>
       <div :class="$style.div4">{{ alertDetail }}</div>
       <div v-if="needsCount > 0" :class="[$style.alertButton, 'btn']" role="button" @click="goToTerms">
         <div :class="[$style.alertButtonBg, 'btn-fill']" />
@@ -298,8 +298,8 @@ onMounted(load)
     </div>
 
     <template v-for="(row, i) in visibleRows" :key="row.source + i">
-      <b :class="$style.sourceCol" :style="{ top: `${rowTop(i)}px` }">{{ row.source }}</b>
-      <div :class="$style.standardCol" :style="{ top: `${rowTop(i)}px` }">{{ row.standard }}</div>
+      <b :class="$style.sourceCol" :style="{ top: `${rowTop(i)}px` }" :title="row.source">{{ row.source }}</b>
+      <div :class="$style.standardCol" :style="{ top: `${rowTop(i)}px` }" :title="row.standard">{{ row.standard }}</div>
       <!-- 값이 없는 칸은 좁은 상자에 가운데 정렬, 값이 있으면 왼쪽 정렬 -->
       <div :class="row.checker === '-' ? $style.emptyCell : $style.checkerCol" :style="{ top: `${rowTop(i)}px` }">{{ row.checker }}</div>
       <div :class="row.checkedAt === '-' ? $style.emptyCellWide : $style.checkedAtCol" :style="{ top: `${rowTop(i)}px` }">{{ row.checkedAt }}</div>
@@ -516,13 +516,19 @@ onMounted(load)
   width: 1820px;
   height: 199px;
 }
+/* 파일명이 들어가는 줄이라 길이를 예측할 수 없다. '보러가기' 버튼(1501) 앞에서
+   끊어 버튼을 덮지 않게 한다. */
 .xlsx {
   position: absolute;
   top: 735px;
   left: 103px;
+  width: 1370px;
   font-size: var(--font-title-03);
   line-height: 45px;
   color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .div4 {
   position: absolute;
@@ -651,22 +657,39 @@ onMounted(load)
   font-size: var(--font-body-03);
   line-height: 30px;
 }
+/* 원본 칼럼·표준 용어·확인자는 전부 서버 값이라 길이를 예측할 수 없다.
+   칸 폭 안에서 한 줄로 자른다 — 전체 값은 title 로 본다. */
 .sourceCol {
   position: absolute;
   line-height: 36px;
   left: 120px;
+  width: 310px;
   color: #000;
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .standardCol {
   position: absolute;
   line-height: 36px;
   left: 458px;
+  width: 385px;
   font-weight: 500;
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .checkerCol {
   position: absolute;
   left: 1214px;
+  width: 250px;
   font-weight: 500;
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .checkedAtCol {
   position: absolute;

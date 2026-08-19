@@ -72,9 +72,13 @@ const statLine = computed(() => {
   if (loading.value || loadError.value || !rounds.value?.rounds.length) return ''
   const list = rounds.value.rounds
   const latest = list[list.length - 1]
-  const parts = [file.value?.filename ?? '파일', `자동 매핑 ${Math.round(latest.auto_mapped_rate)}%`]
-  if (list.length > 1) {
-    const delta = rounds.value.delta
+  // 서버가 값을 빼먹으면 Math.round(undefined) 가 NaN 이 되어 화면에 그대로 찍힌다.
+  const rate = Number.isFinite(latest.auto_mapped_rate)
+    ? `${Math.round(latest.auto_mapped_rate)}%`
+    : '-'
+  const parts = [file.value?.filename ?? '파일', `자동 매핑 ${rate}`]
+  const delta = rounds.value.delta
+  if (list.length > 1 && Number.isFinite(delta)) {
     const sign = delta > 0 ? '+' : ''
     parts.push(`${list.length}회차 · 지난 회차 대비 ${sign}${delta}%p`)
   }

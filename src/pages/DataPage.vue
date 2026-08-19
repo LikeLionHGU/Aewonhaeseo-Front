@@ -24,7 +24,9 @@ const CARD_LEFTS = [50, 516, 982, 1448]
 
 // 파일 목록 — 첫 행 1071, 이후 139px 간격.
 const COL = { file: 120, period: 588, status: 871, version: 1214, uploaded: 1481, action: 1700 }
-const MAPPING_TRACK = 161
+/* 알약 폭. 원본 161px 에서는 '확인 필요 137' 이 두 줄로 쪼개져 알약 밖으로
+   흘러나왔다. 매핑 상태 칸은 871~1214 라 260px 까지 여유가 있다. */
+const MAPPING_TRACK = 260
 const FIRST_ROW_TOP = 1071
 const ROW_H = 139
 const TABLE_HEADER_H = 99
@@ -298,7 +300,7 @@ onMounted(load)
 
     <template v-for="(row, i) in visibleRows" :key="row.id">
       <div :class="$style.fileCell" :style="{ top: `${rowTop(i)}px`, left: `${COL.file}px` }">
-        <b :class="$style.fileName">{{ row.name }}</b>
+        <b :class="$style.fileName" :title="row.name">{{ row.name }}</b>
         <div :class="$style.fileMeta">{{ row.meta }}</div>
       </div>
       <div :class="$style.cell" :style="{ top: `${rowTop(i) + 18}px`, left: `${COL.period}px` }">{{ row.period }}</div>
@@ -577,7 +579,7 @@ onMounted(load)
 }
 .fileCell {
   position: absolute;
-  width: 323px;
+  width: 440px;
   height: 72px;
   color: #000;
 }
@@ -620,7 +622,7 @@ onMounted(load)
 /* ── 매핑 상태 위젯 ─────────────────────────── */
 .mappingCell {
   position: absolute;
-  width: 161px;
+  width: 260px;
   height: 68px;
   font-size: var(--font-body-03);
   color: #00559e;
@@ -631,7 +633,7 @@ onMounted(load)
   left: 0px;
   border-radius: 40px;
   background-color: #d9d9d9;
-  width: 161px;
+  width: 260px;
   height: 17px;
 }
 .barFill {
@@ -656,7 +658,7 @@ onMounted(load)
   left: 0px;
   border-radius: 50px;
   background-color: #e5f3ff;
-  width: 161px;
+  width: 260px;
   height: 41px;
 }
 .pillFailed {
@@ -665,7 +667,7 @@ onMounted(load)
   left: 0px;
   border-radius: 50px;
   background-color: rgba(255, 0, 0, 0.18);
-  width: 161px;
+  width: 260px;
   height: 41px;
 }
 .pillDot {
@@ -684,10 +686,16 @@ onMounted(load)
   width: 20px;
   height: 20px;
 }
+/* 상태 문구는 알약 안에서 한 줄로 둔다. '확인 필요 1284' 처럼 건수가 커져도
+   줄바꿈되지 않게 한다. */
 .pillLabel {
   position: absolute;
   top: 36px;
   left: 50px;
+  right: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pillLabelDone {
   left: 46px;

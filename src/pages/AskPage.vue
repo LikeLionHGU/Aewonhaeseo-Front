@@ -109,6 +109,9 @@ function openResult(executionId: string) {
   router.push({ name: "results", query: { executionId } });
 }
 
+// 템플릿 카드 안, 세 줄 사이 구분선 y 좌표.
+const TEMPLATE_DIVIDERS = [1179, 1313];
+
 // 기록 카드 좌표 — 첫 카드가 956px, 이후 155px 간격.
 const HISTORY_STEP = 155;
 const cardTop = (i: number) => 956 + i * HISTORY_STEP;
@@ -133,9 +136,6 @@ onMounted(loadHistory);
         >수질측정망 데이터를 자동으로 집계·분석하고, 계산 근거와 원본 데이터를
         함께 제공합니다.</b
       >
-      <div :class="$style.div2">
-        투명한 기술 검증으로 가장 믿을 수 있는 분석 환경을 만듭니다.
-      </div>
       <div :class="$style.child" />
       <div :class="$style.parent">
         <b :class="$style.b3">수질 데이터에 대해 질문해 보세요</b>
@@ -200,7 +200,8 @@ onMounted(loadHistory);
       </div>
       <template v-for="(card, i) in historyCards" :key="card.id">
         <div :class="$style.historyCard" :style="{ top: `${cardTop(i)}px` }" />
-        <b :class="$style.historyTitle" :style="{ top: `${titleTop(i)}px` }">{{ card.title }}</b>
+        <b :class="$style.historyTitle" :style="{ top: `${titleTop(i)}px` }"
+           :title="card.title">{{ card.title }}</b>
         <div :class="$style.historyMeta" :style="{ top: `${chipTop(i)}px` }">
           <b :class="[$style.metaBadge, card.truncated && $style.metaBadgeWarn]">{{ card.badge }}</b>
           <b :class="$style.metaRuleset">{{ card.ruleset }}</b>
@@ -217,8 +218,8 @@ onMounted(loadHistory);
         </div>
       </template>
       <div :class="$style.child5" />
-      <img :class="$style.vectorIcon" alt="" />
-      <img :class="$style.child6" alt="" />
+      <div v-for="top in TEMPLATE_DIVIDERS" :key="top" :class="$style.templateDivider"
+           :style="{ top: `${top}px` }" />
       <b :class="$style.b17">자주 쓰는 템플릿</b>
       <b :class="$style.b18">월별 항목 추세 분석</b>
       <b :class="$style.b19">기준 초과 구간 탐지</b>
@@ -314,22 +315,6 @@ onMounted(loadHistory);
   margin-inline: auto;
   line-height: 45px;
   color: #6b7280;
-  flex-shrink: 0;
-}
-/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
-   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
-   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
-.div2 {
-  position: absolute;
-  top: 2524px;
-  left: 0px;
-  right: 0px;
-  width: fit-content;
-  margin-inline: auto;
-  font-size: var(--font-body-01);
-  line-height: 55px;
-  font-weight: 500;
-  color: #fff;
   flex-shrink: 0;
 }
 .child {
@@ -666,20 +651,14 @@ onMounted(loadHistory);
   height: 510px;
   flex-shrink: 0;
 }
-.vectorIcon {
+/* 템플릿 세 줄 사이 구분선. 원본은 src 가 없는 빈 <img> 라 아무것도 그려지지
+   않았다 — 다른 화면의 구분선과 같은 방식으로 되살린다. */
+.templateDivider {
   position: absolute;
-  top: 1179px;
   left: 1256px;
-  max-height: 100%;
   width: 439.5px;
-  flex-shrink: 0;
-}
-.child6 {
-  position: absolute;
-  top: 1313px;
-  left: 1256px;
-  max-height: 100%;
-  width: 439.5px;
+  height: 1px;
+  background-color: #e6e7eb;
   flex-shrink: 0;
 }
 .b17 {

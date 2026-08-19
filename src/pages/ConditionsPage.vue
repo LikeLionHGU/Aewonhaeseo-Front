@@ -252,12 +252,11 @@ onMounted(load)
       </div>
       <span v-if="rangeInvalid" :class="$style.rangeHint" role="alert">시작이 종료보다 늦어요</span>
     </div>
-    <div :class="$style.div7">투명한 기술 검증으로 가장 믿을 수 있는 분석 환경을 만듭니다.</div>
     <div :class="$style.child3" />
     <div :class="$style.wrapper">
       <b :class="$style.b7">입력된 질문</b>
     </div>
-    <b :class="$style.bod">{{ question || '질문 없이 조건만 골라 분석합니다' }}</b>
+    <b :class="$style.bod" :title="question">{{ question || '질문 없이 조건만 골라 분석합니다' }}</b>
     <div :class="[$style.rectangleGroup, 'btn']" role="button" @click="selectPeriod('최근 1개월')">
       <div :class="[$style.groupItem, periodOn('최근 1개월') && $style.chipOn, 'btn-fill']" />
       <div :class="[$style.div9, periodOn('최근 1개월') && $style.chipLabelOn]">최근 1개월</div>
@@ -381,7 +380,9 @@ onMounted(load)
 }
 .div {
   width: 1920px;
-  height: 2363px;
+  /* 푸터 띠(2099 + 171)가 끝나는 지점. DESIGN_HEIGHT 와 같아야 아래에 죽은
+     공간이 남지 않는다. */
+  height: 2270px;
   position: relative;
   background-color: #f8f9fc;
   text-align: left;
@@ -434,7 +435,7 @@ onMounted(load)
    내용에 맞게 늘어나게 한다. 원본의 시작 좌표(247)와 간격(15px)은 그대로다. */
 .summaryRow {
   position: absolute;
-  top: 468px;
+  top: 500px;
   left: 247px;
   display: flex;
   gap: 15px;
@@ -800,23 +801,6 @@ onMounted(load)
   color: #9ca3af;
   flex-shrink: 0;
 }
-/* 원본은 calc(50% - 텍스트폭/2) 로 중앙을 맞춰서 글자 크기가 바뀌면 밀렸다.
-   left/right 0 + fit-content + auto 여백으로 블록만 가운데 놓는다. text-align 을
-   건드리지 않으므로 여러 줄 텍스트의 줄 내부 정렬은 원본 그대로 유지된다. */
-.div7 {
-  position: absolute;
-  top: 2431px;
-  left: 0px;
-  right: 0px;
-  width: fit-content;
-  margin-inline: auto;
-  font-size: var(--font-body-01);
-  line-height: 55px;
-  font-weight: 500;
-  color: #fff;
-  text-align: right;
-  flex-shrink: 0;
-}
 .child3 {
   position: absolute;
   top: 302px;
@@ -845,16 +829,21 @@ onMounted(load)
   left: 0px;
   line-height: 45px;
 }
+/* 원본은 655×45px 고정이라, 질문이 한 줄을 넘으면 상자 밖으로 넘쳐 아래
+   조건 칩 줄 위에 겹쳐 그려졌다. 카드 안쪽 폭을 다 쓰고 두 줄에서 끊는다.
+   (칩 줄은 468 → 500 으로 내려 두 줄이 들어갈 자리를 만들었다.) */
 .bod {
   position: absolute;
   top: 389px;
   left: 247px;
   font-size: var(--font-body-01);
   line-height: 45px;
-  display: inline-block;
   color: #00559e;
-  width: 655px;
-  height: 45px;
+  width: 1580px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   flex-shrink: 0;
 }
 .rectangleGroup {
