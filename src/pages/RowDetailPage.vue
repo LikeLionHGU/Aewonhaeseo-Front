@@ -152,8 +152,21 @@ const limitText = computed(() => {
   return l.limit_min !== undefined ? `${l.limit_min}~${l.limit_max}` : String(l.limit_max)
 })
 
-/** 상자 안쪽에 한 줄로 들어가는 길이. 넘으면 글자를 줄여 설명과 겹치지 않게 한다. */
-const STEP_ONE_LINE = 8
+/**
+ * 상자 안쪽(224px)에 큰 글씨로 한 줄이 들어가는 길이. 넘으면 글자를 줄여
+ * 설명과 겹치지 않게 한다.
+ *
+ * 글자 수로 세면 안 된다 — 한글은 라틴 글자의 두 배 폭이라 '노말헥산추출물질'
+ * 여덟 자가 '40.1234' 일곱 자보다 두 배 넓다. 폭으로 환산해서 잰다.
+ */
+const STEP_ONE_LINE = 11
+const WIDE_CHAR = /[ᄀ-ᇿ㄰-㆏가-힯　-〿＀-￯]/
+
+function displayWidth(text: string) {
+  let width = 0
+  for (const ch of text) width += WIDE_CHAR.test(ch) ? 2 : 1
+  return width
+}
 
 const verdictSteps = computed(() => [
   {
@@ -263,9 +276,15 @@ const plainText = computed(() => {
 // 원본 행 표는 세 줄, 판정에 쓰인 컬럼 표는 줄 수가 달라진다.
 
  /* 행 번호 한 칸 + 파일 컬럼 일곱 칸. 측정일·지점은 파일 컬럼에 이미 들어 있어
-   따로 두면 중복이고, 이웃 행에는 대상 행 값이 잘못 박힌다. */
+   따로 두면 중복이고, 이웃 행에는 대상 행 값이 잘못 박힌다.
+
+   원본 좌표는 칸 간격이 213~269px 로 들쭉날쭉했고 칸마다 폭도 없어서, 실제
+   컬럼명('노말헥산추출물질(동식물유지류)')과 값('서울특별시 중랑물재생센터
+   제2처리장')이 옆 칸을 침범했다. 같은 간격으로 다시 깔고 칸 폭 안에서 자른다. */
 const RAW_COL = { no: 105 }
-const VALUE_LEFTS = [262, 531, 761, 974, 1204, 1430, 1690]
+const VALUE_STEP = 229
+const VALUE_WIDTH = 210
+const VALUE_LEFTS = Array.from({ length: 7 }, (_, i) => 262 + i * VALUE_STEP)
 const RAW_ROW_TOP = 715
 const RAW_ROW_STEP = 82
 const rawRowTop = (i: number) => RAW_ROW_TOP + i * RAW_ROW_STEP
@@ -273,20 +292,6 @@ const rawDividers = computed(() => [
   588,
   ...shownRows.value.slice(1).map((_, i) => RAW_ROW_TOP - 33 + (i + 1) * RAW_ROW_STEP),
 ])
-
-const MAPPING_TOP = 2229
-const MAPPING_STEP = 73
-const BASE_MAPPING_ROWS = 4
-const mappingTop = (i: number) => MAPPING_TOP + i * MAPPING_STEP
-const mappingShift = computed(
-  () => (Math.max(1, mappingRows.value.length) - BASE_MAPPING_ROWS) * MAPPING_STEP,
-)
-const designHeight = computed(() => BASE_HEIGHT + mappingShift.value)
-const cardDividers = computed(() => {
-  const fixed = [1788, 2022, 2125]
-  const rows = mappingRows.value.slice(1).map((_, i) => 2288 + i * MAPPING_STEP)
-  return [...fixed, ...rows]
-})
 
 const viewMode = ref<'쉬운 말' | 'SQL' | '둘 다'>('쉬운 말')
 const VIEW_SEGMENT = {
@@ -296,6 +301,61 @@ const VIEW_SEGMENT = {
 } as const
 const showPlain = computed(() => viewMode.value !== 'SQL')
 const showSql = computed(() => viewMode.value !== '쉬운 말')
+
+/**
+ * 쉬운 말 띠와 SQL 블록이 켜지고 꺼지면서 그 아래가 밀린다.
+ *
+ * 원본은 SQL 블록을 쉬운 말 띠 한가운데(1900)에 고정 좌표로 박아둬서, SQL 을
+ * 켜면 쉬운 말 문장과 '이 판정에 쓰인 컬럼' 표를 통째로 덮어 버렸다. 근거
+ * 화면(EvidencePage)이 하는 것처럼 내용 높이를 재서 아래를 밀어낸다.
+ */
+const PLAIN_BAND_TOP = 1789
+const PLAIN_BAND_H = 230
+const SQL_LINE_H = 32
+// .sqlBlock 의 위아래 padding(28+28) 합.
+const SQL_PADDING = 56
+const SQL_GAP = 20
+// 쉬운 말만 켠 원본 배치에서 이 구간이 끝나는 y.
+const BASE_SECTION_BOTTOM = PLAIN_BAND_TOP + PLAIN_BAND_H
+
+const sqlLineCount = computed(() => (detail.value?.generated_sql ?? '').split('\n').length)
+const plainBandH = computed(() => (showPlain.value ? PLAIN_BAND_H : 0))
+const sqlTop = computed(
+  () => PLAIN_BAND_TOP + plainBandH.value + (showPlain.value ? SQL_GAP : 0),
+)
+const sqlHeight = computed(() =>
+  showSql.value ? SQL_PADDING + sqlLineCount.value * SQL_LINE_H : 0,
+)
+const sectionBottom = computed(() =>
+  showSql.value
+    ? sqlTop.value + sqlHeight.value + SQL_GAP
+    : PLAIN_BAND_TOP + plainBandH.value,
+)
+const sqlShift = computed(() => sectionBottom.value - BASE_SECTION_BOTTOM)
+
+// --- 이 판정에 쓰인 컬럼 ---
+
+const MAPPING_TOP = 2229
+const MAPPING_STEP = 73
+const BASE_MAPPING_ROWS = 4
+const mappingTop = (i: number) => MAPPING_TOP + sqlShift.value + i * MAPPING_STEP
+const mappingShift = computed(
+  () => (Math.max(1, mappingRows.value.length) - BASE_MAPPING_ROWS) * MAPPING_STEP,
+)
+/** 표 카드 높이 — 원본은 4행 기준 294px 고정이었다. */
+const mappingCardHeight = computed(
+  () => Math.max(1, mappingRows.value.length) * MAPPING_STEP + 2,
+)
+/** 마지막 행 배경 강조. 원본은 4행째에 좌표가 박혀 있었다. */
+const lastRowTop = computed(() => mappingTop(Math.max(0, mappingRows.value.length - 1)) - 13)
+
+const designHeight = computed(() => BASE_HEIGHT + sqlShift.value + mappingShift.value)
+const cardDividers = computed(() => {
+  // 1788 은 쉬운 말 띠 위쪽 구분선이라 SQL 높이의 영향을 받지 않는다.
+  const fixed = [1788, 2022 + sqlShift.value, 2125 + sqlShift.value]
+  const rows = mappingRows.value.slice(1).map((_, i) => mappingTop(i) + 59)
+  return [...fixed, ...rows]
+})
 
 function backToEvidence() {
   router.push({
@@ -328,19 +388,19 @@ onMounted(load)
       <b :class="$style.xlsx">{{ sourceNote }}</b>
       <div v-for="top in rawDividers" :key="top" :class="$style.divider" :style="{ top: `${top}px` }" />
       <b :class="$style.rawHead" :style="{ left: `${RAW_COL.no}px` }">원본 행</b>
-      <b v-for="(col, c) in valueColumns" :key="col.name" :class="$style.rawHead"
-         :style="{ left: `${VALUE_LEFTS[c]}px` }">{{ col.name }}</b>
+      <b v-for="(col, c) in valueColumns" :key="col.name" :class="[$style.rawHead, $style.rawColumn]"
+         :style="{ left: `${VALUE_LEFTS[c]}px`, width: `${VALUE_WIDTH}px` }"
+         :title="col.name">{{ col.name }}</b>
 
       <template v-for="(row, i) in shownRows" :key="row.index">
         <b :class="[$style.rawCell, row.index === targetRowIndex && $style.rawCellTarget]"
            :style="{ top: `${rawRowTop(i)}px`, left: `${RAW_COL.no}px` }">{{ row.index + 1 }}행</b>
         <b v-for="(col, c) in valueColumns" :key="col.name"
-           :class="[$style.rawCell,
+           :class="[$style.rawCell, $style.rawColumn,
                     row.index === targetRowIndex && $style.rawCellTarget,
                     row.index === targetRowIndex && col.name === target.source_column && $style.rawCellPicked]"
-           :style="{ top: `${rawRowTop(i)}px`, left: `${VALUE_LEFTS[c]}px` }">
-          {{ row.cells[col.index] ?? '-' }}
-        </b>
+           :style="{ top: `${rawRowTop(i)}px`, left: `${VALUE_LEFTS[c]}px`, width: `${VALUE_WIDTH}px` }"
+           :title="row.cells[col.index] ?? '-'">{{ row.cells[col.index] ?? '-' }}</b>
       </template>
 
       <!-- 판정 과정 -->
@@ -352,8 +412,9 @@ onMounted(load)
           <b :class="$style.stepLabel">{{ step.label }}</b>
           <b :class="[$style.stepValue,
                       step.danger && $style.stepValueDanger,
-                      step.value.length > STEP_ONE_LINE && $style.stepValueLong]">{{ step.value }}</b>
-          <div :class="$style.stepNote">{{ step.note }}</div>
+                      displayWidth(step.value) > STEP_ONE_LINE && $style.stepValueLong]"
+             :title="step.value">{{ step.value }}</b>
+          <div :class="$style.stepNote" :title="step.note">{{ step.note }}</div>
         </div>
       </template>
       <div v-for="left in arrowLeft" :key="left" :class="$style.stepArrow" :style="{ left: `${left}px` }">→</div>
@@ -361,7 +422,7 @@ onMounted(load)
       <b :class="$style.mgl3">{{ rollupNote }}</b>
 
       <!-- 이 행을 가져온 조건 -->
-      <div :class="$style.rectangleDiv" />
+      <div :class="$style.rectangleDiv" :style="{ height: `${845 + sqlShift + mappingShift}px` }" />
       <b :class="$style.b36">이 행을 가져온 조건</b>
       <div :class="$style.child9" />
       <div :class="$style.child10" />
@@ -382,28 +443,34 @@ onMounted(load)
         <b :class="$style.b50">쉬운 말로</b>
         <div :class="$style.bod3">{{ plainText }}</div>
       </template>
-      <div v-if="showSql" :class="$style.sqlBlock">{{ detail?.generated_sql }}</div>
+      <div v-if="showSql" :class="$style.sqlBlock"
+           :style="{ top: `${sqlTop}px`, height: `${sqlHeight}px` }">{{ detail?.generated_sql }}</div>
 
       <!-- 이 판정에 쓰인 컬럼 -->
-      <div :class="$style.child2" />
+      <div :class="$style.child2"
+           :style="{ top: `${2213 + sqlShift}px`, height: `${mappingCardHeight}px` }" />
       <div v-for="top in cardDividers" :key="top" :class="$style.divider" :style="{ top: `${top}px` }" />
-      <b :class="$style.b37">이 판정에 쓰인 컬럼</b>
-      <b :class="$style.mapHead" :style="{ left: '105px' }">원본 컬럼</b>
-      <b :class="$style.mapHead" :style="{ left: '424px' }">표준 용어</b>
-      <b :class="$style.mapHead" :style="{ left: '766px' }">매핑 방식</b>
-      <b :class="[$style.mapHead, $style.mapHeadCenter]" :style="{ left: '1136px' }">확인자</b>
-      <div :class="$style.child19" />
+      <b :class="$style.b37" :style="{ top: `${2053 + sqlShift}px` }">이 판정에 쓰인 컬럼</b>
+      <b :class="$style.mapHead" :style="{ top: `${2142 + sqlShift}px`, left: '105px' }">원본 컬럼</b>
+      <b :class="$style.mapHead" :style="{ top: `${2142 + sqlShift}px`, left: '424px' }">표준 용어</b>
+      <b :class="$style.mapHead" :style="{ top: `${2142 + sqlShift}px`, left: '766px' }">매핑 방식</b>
+      <b :class="[$style.mapHead, $style.mapHeadCenter]"
+         :style="{ top: `${2142 + sqlShift}px`, left: '1136px' }">확인자</b>
+      <div v-if="mappingRows.length" :class="$style.child19" :style="{ top: `${lastRowTop}px` }" />
       <div v-if="!mappingRows.length" :class="$style.mapEmpty" :style="{ top: `${mappingTop(0)}px` }">
         이 행에 쓰인 컬럼 정보를 찾지 못했어요.
       </div>
       <template v-for="(row, i) in mappingRows" :key="row.origCol">
-        <b :class="$style.mapSqlCol" :style="{ top: `${mappingTop(i)}px` }">{{ row.origCol }}</b>
-        <b :class="$style.mapOrigCol" :style="{ top: `${mappingTop(i)}px` }">{{ row.stdTerm }}</b>
+        <b :class="$style.mapSqlCol" :style="{ top: `${mappingTop(i)}px` }"
+           :title="row.origCol">{{ row.origCol }}</b>
+        <b :class="$style.mapOrigCol" :style="{ top: `${mappingTop(i)}px` }"
+           :title="row.stdTerm">{{ row.stdTerm }}</b>
         <div :class="$style.mapBadge" :style="{ top: `${mappingTop(i)}px` }">
           <div :class="row.byHuman ? $style.mapBadgeHuman : $style.mapBadgeAuto" />
           <b :class="[$style.mapBadgeText, row.byHuman && $style.mapBadgeTextHuman]">{{ row.badge }}</b>
         </div>
-        <div :class="$style.mapConfirm" :style="{ top: `${mappingTop(i)}px` }">{{ row.confirm }}</div>
+        <div :class="$style.mapConfirm" :style="{ top: `${mappingTop(i)}px` }"
+             :title="row.confirm">{{ row.confirm }}</div>
       </template>
     </template>
 
@@ -411,7 +478,7 @@ onMounted(load)
       {{ loadError || '보여줄 측정값이 없어요.' }}
     </div>
 
-    <div :class="$style.child8" :style="{ top: `${2696 + mappingShift}px` }" />
+    <div :class="$style.child8" :style="{ top: `${2696 + sqlShift + mappingShift}px` }" />
     <div :class="[$style.div4, 'link']" @click="backToEvidence">←</div>
   </div>
   </div>
@@ -438,11 +505,11 @@ onMounted(load)
   text-decoration-thickness: 2px;
 }
 /* SQL 원문 — 근거 화면과 같은 모양 */
+/* top·height 는 스크립트가 계산해 넣는다 — 줄 수만큼 아래를 밀어내야 해서다. */
 .sqlBlock {
   position: absolute;
-  top: 1900px;
   left: 121px;
-  width: 1500px;
+  width: 1700px;
   box-sizing: border-box;
   margin: 0;
   padding: 28px 32px;
@@ -454,6 +521,7 @@ onMounted(load)
   color: #374151;
   white-space: pre;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 .mapEmpty {
   position: absolute;
@@ -589,14 +657,19 @@ onMounted(load)
   width: 1816px;
   height: 228px;
 }
+/* 파일명·지점명이 길어 864px 안에서는 세 줄이 되고 표 헤더(617)를 덮었다.
+   카드 안쪽 폭을 다 쓰고 두 줄에서 끊는다. */
 .xlsx {
   position: absolute;
   top: 494px;
   left: 105px;
   font-size: var(--font-body-02);
   line-height: 45px;
-  display: inline-block;
-  width: 864px;
+  width: 1700px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .rawHead {
   position: absolute;
@@ -606,6 +679,13 @@ onMounted(load)
 .rawCell {
   position: absolute;
   line-height: 30px;
+}
+/* 컬럼명·셀값은 칸 폭 안에서 한 줄로 자른다. 전체 값은 title 로 본다. */
+.rawColumn {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* ── 초과 판정 과정 ─────────────────────────── */
 .child17 {
@@ -688,14 +768,19 @@ onMounted(load)
 .stepValueDanger {
   color: #ff0000;
 }
+/* 기준치 세트 이름처럼 긴 설명이 상자를 뚫고 옆 상자를 관통했다.
+   상자 안쪽에 가두고 넘치면 자른다 — 전체 문구는 title 로 본다. */
 .stepNote {
   position: absolute;
   top: 132px;
   left: 47px;
+  right: 24px;
   line-height: 45px;
   font-weight: 500;
   color: #6b7280;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .stepArrow {
   position: absolute;
@@ -817,24 +902,22 @@ onMounted(load)
   position: absolute;
   top: 1884px;
   left: 105px;
+  width: 1660px;
   font-size: var(--font-body-03);
   line-height: 45px;
   color: #000;
 }
 .child2 {
   position: absolute;
-  top: 2213px;
   left: 52px;
   border-radius: 0px 0px 18px 18px;
   background-color: #fbfbfb;
   border: 2px solid #d1d5db;
   box-sizing: border-box;
   width: 1816px;
-  height: 294px;
 }
 .b37 {
   position: absolute;
-  top: 2053px;
   left: 105px;
   font-size: var(--font-body-02);
   line-height: 45px;
@@ -843,7 +926,6 @@ onMounted(load)
 }
 .mapHead {
   position: absolute;
-  top: 2142px;
   font-size: var(--font-body-03);
   line-height: 45px;
   display: inline-block;
@@ -852,10 +934,9 @@ onMounted(load)
 .mapHeadCenter {
   text-align: center;
 }
-/* 마지막 매핑 행(사람 확인)만 배경 강조 */
+/* 마지막 매핑 행만 배경 강조. top 은 행 수에 맞춰 스크립트가 넣는다. */
 .child19 {
   position: absolute;
-  top: 2435px;
   left: 52px;
   border-radius: 0px 0px 18px 18px;
   background-color: #eff5fe;

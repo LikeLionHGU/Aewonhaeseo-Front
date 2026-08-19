@@ -140,6 +140,8 @@ const AXIS_ZERO_Y = 1835
 const PLOT_HEIGHT = 440.5
 const GRID_STEPS = 4
 const MONTH_LABEL_WIDTH = 90
+// 구간이 많으면 라벨끼리 겹친다. 이 개수를 넘으면 걸러서 찍는다.
+const MAX_AXIS_LABELS = 12
 
 /**
  * 눈금 간격을 고른다.
@@ -196,7 +198,8 @@ const points = computed(() =>
       y: toY(p.value),
       over: violation !== null,
       violation,
-      label: p.bucket,
+      // 구간 이름이 비어 오면 요약·표·KPI 어디서든 'undefined' 로 찍힌다.
+      label: p.bucket ?? '-',
       value: p.value,
       n: p.n,
       missing: p.missing,
@@ -204,6 +207,8 @@ const points = computed(() =>
   }),
 )
 const linePath = computed(() => points.value.map((p) => `${p.x},${p.y}`).join(' '))
+/** 36개월치처럼 구간이 많으면 라벨을 몇 칸씩 건너뛴다. */
+const labelStep = computed(() => Math.ceil(points.value.length / MAX_AXIS_LABELS) || 1)
 const gridValues = computed(() =>
   Array.from({ length: GRID_STEPS + 1 }, (_, i) => (axisMax.value / GRID_STEPS) * i),
 )
@@ -214,6 +219,18 @@ const thresholdMinY = computed(() =>
 
 /** 눈금 라벨 — 정수면 그대로, 아니면 소수 한 자리. */
 const axisText = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1))
+
+/**
+ * 집계값 표기.
+ *
+ * 서버가 준 실수를 String() 으로 그대로 찍으면 35.900000000000006 처럼 부동소수점
+ * 끝자리가 드러나고, 그 길이 때문에 표 칸과 그래프 라벨이 옆 칸까지 번진다.
+ * 넷째 자리에서 반올림하고 의미 없는 0 은 뗀다.
+ */
+function formatValue(value: number) {
+  if (!Number.isFinite(value)) return '-'
+  return String(Number(value.toFixed(4)))
+}
 
 // --- 요약 ---
 
@@ -236,7 +253,7 @@ const summaryNote = computed(() => {
   if (overPoints.value.length) {
     const worst = overPoints.value.reduce((a, b) => ((a.violation?.rate ?? 0) > (b.violation?.rate ?? 0) ? a : b))
     const how = worst.violation?.kind === 'under' ? '하한 미달' : '상한 초과'
-    parts.push(`${worst.label} ${worst.value}${valueUnit.value} ${how} ${worst.violation?.rate}%`)
+    parts.push(`${worst.label} ${formatValue(worst.value)}${valueUnit.value} ${how} ${worst.violation?.rate}%`)
   }
   if (result.value.assumptions.length) parts.push(...result.value.assumptions)
   return parts.join(' · ') || '기준을 넘은 구간이 없어요'
@@ -311,7 +328,7 @@ const kpiCards = computed(() => {
       value: worst ? `${worst.violation?.kind === 'under' ? '-' : '+'}${worst.violation?.rate}%` : '-',
       suffix: '',
       accent: over.length > 0,
-      note: worst && limit ? `${worst.label} ${worst.value}${limit.unit ?? ''} (기준 ${bound})` : '해당 없음',
+      note: worst && limit ? `${worst.label} ${formatValue(worst.value)}${limit.unit ?? ''} (기준 ${bound})` : '해당 없음',
       cardLeft: 677, cardWidth: 566, textLeft: 729,
     },
     {
@@ -339,7 +356,7 @@ const tableRows = computed(() =>
     else if (p.violation?.kind === 'under') vsLimit = `하한 미달 -${p.violation.rate}%`
     return {
       bucket: p.label,
-      value: String(p.value),
+      value: formatValue(p.value),
       count: String(p.n),
       missing: String(p.missing),
       vsLimit,
@@ -388,10 +405,10 @@ onMounted(load)
 
     <!-- 요약 -->
     <div :class="$style.item" />
-    <b :class="$style.bod25">
+    <b :class="$style.bod25" :title="summaryHead">
       {{ loading ? '결과를 불러오는 중이에요…' : loadError ? '결과를 볼 수 없어요' : summaryHead }}
     </b>
-    <div :class="[$style.mgl, loadError && $style.noticeError]">
+    <div :class="[$style.mgl, loadError && $style.noticeError]" :title="loadError || summaryNote">
       {{ loadError || summaryNote }}
     </div>
     <template v-if="result">
@@ -489,27 +506,34 @@ onMounted(load)
         <circle v-for="(p, i) in points" :key="i" :cx="p.x" :cy="p.y" r="12.5"
                 :class="p.over ? $style.dotOver : $style.dot" />
         <text v-for="(p, i) in points.filter((q) => q.over)" :key="`t${i}`"
-              :x="p.x" :y="p.y - 24" :class="$style.dotValue" text-anchor="middle">{{ p.value }}</text>
+              :x="p.x" :y="p.y - 24" :class="$style.dotValue" text-anchor="middle">{{ formatValue(p.value) }}</text>
       </svg>
 
-      <div v-for="(p, i) in points" :key="`m${i}`" :class="$style.monthLabel"
+      <div v-for="(p, i) in points" v-show="i % labelStep === 0" :key="`m${i}`" :class="$style.monthLabel"
            :style="{ left: `${p.x - MONTH_LABEL_WIDTH / 2}px`, width: `${MONTH_LABEL_WIDTH}px` }">{{ p.label }}</div>
       <div v-for="v in gridValues" :key="`y${v}`" :class="$style.axisLabel"
            :style="{ top: `${toY(v) - 22}px` }">{{ axisText(v) }}</div>
 
-      <div :class="$style.child38" />
-      <b :class="$style.bod5">{{ termName(activeItem) }} {{ metricLabel }}</b>
-      <template v-if="itemLimit">
-        <div :class="$style.child39" />
-        <b :class="$style.mgl3">
-          기준치
-          <template v-if="itemLimit.limit_min !== undefined">{{ itemLimit.limit_min }}~</template>{{ itemLimit.limit_max }}
-          {{ itemLimit.unit ?? '' }}
-        </b>
-        <div :class="$style.child37" />
-        <b :class="$style.b22">기준 벗어남 (값 직접 표기)</b>
-      </template>
-      <b :class="$style.b23">{{ result.meta.row_count }}행 · {{ result.meta.elapsed_ms }}ms · 사전 {{ result.meta.dictionary_version }}</b>
+      <!-- 범례 — 원본은 표식·라벨 좌표를 하나씩 박아둬서 항목명이 길면
+           옆 라벨과 겹쳤다. 내용에 맞춰 늘어나는 한 줄로 둔다. -->
+      <div :class="$style.legendRow">
+        <span :class="$style.legendItem">
+          <i :class="$style.legendLine" />{{ termName(activeItem) }} {{ metricLabel }}
+        </span>
+        <template v-if="itemLimit">
+          <span :class="$style.legendItem">
+            <i :class="$style.legendDash" />기준치
+            <template v-if="itemLimit.limit_min !== undefined">{{ itemLimit.limit_min }}~</template>{{ itemLimit.limit_max }}
+            {{ itemLimit.unit ?? '' }}
+          </span>
+          <span :class="$style.legendItem">
+            <i :class="$style.legendDot" />기준 벗어남 (값 직접 표기)
+          </span>
+        </template>
+        <span :class="$style.legendItem">
+          {{ result.meta.row_count }}행 · {{ result.meta.elapsed_ms }}ms · 사전 {{ result.meta.dictionary_version }}
+        </span>
+      </div>
     </template>
 
     <!-- 표 결과 / 기준 초과 분석 -->
@@ -521,7 +545,9 @@ onMounted(load)
           <b :class="[$style.kpiValue, card.accent && $style.kpiValueAccent]" :style="{ left: `${card.textLeft}px` }">
             <span>{{ card.value }}</span><span v-if="card.suffix" :class="$style.kpiSuffix">{{ card.suffix }}</span>
           </b>
-          <div :class="$style.kpiNote" :style="{ left: `${card.textLeft}px` }">{{ card.note }}</div>
+          <div :class="$style.kpiNote"
+               :style="{ left: `${card.textLeft}px`, width: `${card.cardWidth - 102}px` }"
+               :title="card.note">{{ card.note }}</div>
         </template>
       </template>
 
@@ -728,20 +754,33 @@ onMounted(load)
   width: 1820px;
   height: 199px;
 }
+/* 지점이 여럿이면 이 줄이 오른쪽 '기준 벗어남 N/M' 숫자(1713~)까지 뻗어
+   글자끼리 겹쳤다. 그 앞에서 끊는다. */
 .bod25 {
   position: absolute;
   top: 647px;
   left: 103px;
+  width: 1560px;
   font-size: var(--font-title-03);
   line-height: 45px;
   color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+/* 서버가 준 assumptions 를 이어 붙이는 줄이라 길이 상한이 없다. 카드(592~791)
+   안에서 두 줄까지만 쓴다. */
 .mgl {
   position: absolute;
   top: 694px;
   left: 103px;
+  width: 1560px;
   line-height: 45px;
   font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .div4 {
   position: absolute;
@@ -1090,12 +1129,17 @@ onMounted(load)
   font-size: var(--font-title-02);
   color: #6b7280;
 }
+/* 기준을 벗어난 구간을 전부 이어 붙이는 줄이라 카드 밖으로 뻗는다.
+   폭은 카드 안쪽(카드폭 - 좌우 여백 51×2)으로 스크립트가 넣어 준다. */
 .kpiNote {
   position: absolute;
   top: 1311px;
   font-size: var(--font-body-03);
   line-height: 45px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .child10 {
@@ -1114,9 +1158,13 @@ onMounted(load)
   position: absolute;
   top: 1199px;
   left: 101px;
+  width: 830px;
   font-size: var(--font-body-02);
   line-height: 45px;
   color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sql {
   position: absolute;
@@ -1205,10 +1253,12 @@ onMounted(load)
 }
 /* 월 레이블 — 원본은 12개 좌표를 하나씩 박아 25px 기준으로 데이터 점 아래
    중앙을 맞췄다. 글자 크기가 바뀌면 어긋나므로 고정 폭 상자에 가운데 정렬해
-   점 좌표에서 직접 계산한다. */
+   점 좌표에서 직접 계산한다.
+   원본 좌표(1843)는 y축 0 눈금(1813~1858)과 세로로 겹쳐 첫 라벨이 '0' 위에
+   찍혔다. 축선 아래로 충분히 내린다. */
 .monthLabel {
   position: absolute;
-  top: 1843px;
+  top: 1866px;
   width: 60px;
   text-align: center;
   line-height: 45px;
@@ -1250,59 +1300,44 @@ onMounted(load)
   line-height: 45px;
   font-weight: 500;
 }
-.child37 {
+/* 범례 — 실선(항목 추이) / 점선(기준치) / 빨간 점(기준 벗어남) + 실행 정보.
+   원본은 넷 다 고정 좌표라 항목명이 길어지면 서로 겹쳤다. */
+.legendRow {
   position: absolute;
-  top: 1966px;
-  left: 563px;
-  border-radius: 50%;
-  background-color: #ff0000;
-  width: 23px;
-  height: 23px;
-}
-/* 범례 표식 — 실선(BOD 월평균) / 점선(기준치) */
-.child38 {
-  position: absolute;
-  top: 1978px;
+  top: 1955px;
   left: 103px;
+  width: 1740px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 28px;
+  line-height: 45px;
+  color: #9ca3af;
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+}
+.legendLine {
+  flex-shrink: 0;
   width: 32.5px;
   height: 4px;
   background-color: #00559e;
 }
-.child39 {
-  position: absolute;
-  top: 1978px;
-  left: 310px;
+.legendDash {
+  flex-shrink: 0;
   width: 32.5px;
   height: 0;
   border-top: 4px dashed #9ca3af;
 }
-.bod5 {
-  position: absolute;
-  top: 1955px;
-  left: 151px;
-  line-height: 45px;
-  color: #9ca3af;
-}
-.mgl3 {
-  position: absolute;
-  top: 1955px;
-  left: 358px;
-  line-height: 45px;
-  color: #9ca3af;
-}
-.b22 {
-  position: absolute;
-  top: 1955px;
-  left: 597px;
-  line-height: 45px;
-  color: #9ca3af;
-}
-.b23 {
-  position: absolute;
-  top: 1955px;
-  left: 866px;
-  line-height: 45px;
-  color: #9ca3af;
+.legendDot {
+  flex-shrink: 0;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background-color: #ff0000;
 }
 .child40 {
   position: absolute;

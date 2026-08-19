@@ -256,7 +256,18 @@ const rawDividers = computed(() => [
 const footerTop = computed(() => 3707 + afterMapping.value + rawShift.value)
 const designHeight = computed(() => BASE_HEIGHT + afterMapping.value + rawShift.value)
 
-const RAW_COL = { no: 120, date: 298, site: 518, outlet: 819, value: 1121, limit: 1375, vs: 1687, vsOver: 1673 }
+/*
+ * 원본 행 표의 칸 좌표와 폭.
+ *
+ * 원본은 '원본 행' 칸이 178px 뿐이라 파일명(`…수질측정자료_최종본_v3.xlsx #15`)이
+ * 측정일·지점·원본 컬럼 세 칸을 통째로 덮었다. 표 안쪽(120~1830)을 내용 길이에
+ * 맞게 다시 나누고, 칸마다 폭을 줘서 넘치면 잘리게 한다.
+ *
+ * 키 이름은 원본 그대로다 — outlet 칸에 원본 컬럼, value 칸에 표준 용어,
+ * limit 칸에 측정값이 들어간다.
+ */
+const RAW_COL = { no: 120, date: 470, site: 640, outlet: 960, value: 1230, limit: 1490, vsOver: 1660 }
+const RAW_W = { no: 330, date: 150, site: 300, outlet: 250, value: 240, limit: 150, vsOver: 175 }
 
 const dividers = computed(() => [634, 832, 1176, 2084 + sqlShift.value, 2187 + sqlShift.value])
 
@@ -329,7 +340,7 @@ onMounted(load)
     </div>
     <b :class="$style.b35">시스템 해석</b>
     <div :class="$style.interpretRow">
-      <div v-for="chip in interpretChips" :key="chip" :class="$style.interpretChip">{{ chip }}</div>
+      <div v-for="chip in interpretChips" :key="chip" :class="$style.interpretChip" :title="chip">{{ chip }}</div>
       <div v-if="!interpretChips.length" :class="$style.interpretChip">
         {{ loading ? '불러오는 중이에요…' : '조건을 알 수 없어요' }}
       </div>
@@ -400,15 +411,16 @@ onMounted(load)
       {{ loading ? '불러오는 중이에요…' : '이 분석이 쓴 항목의 원본 컬럼을 찾지 못했어요.' }}
     </div>
     <template v-for="(row, i) in origins" :key="`${row.code}-${row.raw}`">
-      <b :class="$style.mapSqlCol" :style="{ top: `${mappingTop(i)}px` }">{{ termName(row.code) }}</b>
-      <b :class="$style.mapOrigCol" :style="{ top: `${mappingTop(i)}px` }">{{ row.raw }}</b>
+      <b :class="$style.mapSqlCol" :style="{ top: `${mappingTop(i)}px` }"
+         :title="termName(row.code)">{{ termName(row.code) }}</b>
+      <b :class="$style.mapOrigCol" :style="{ top: `${mappingTop(i)}px` }" :title="row.raw">{{ row.raw }}</b>
       <div :class="$style.mapBadge" :style="{ top: `${mappingTop(i)}px` }">
         <div :class="row.auto ? $style.mapBadgeAuto : $style.mapBadgeHuman" />
         <b :class="[$style.mapBadgeText, !row.auto && $style.mapBadgeTextHuman]">
           {{ row.auto ? '자동 매핑' : '사람 확인' }}
         </b>
       </div>
-      <div :class="$style.mapConfirm" :style="{ top: `${mappingTop(i)}px` }">{{ row.file }}</div>
+      <div :class="$style.mapConfirm" :style="{ top: `${mappingTop(i)}px` }" :title="row.file">{{ row.file }}</div>
     </template>
 
     <!-- 기준을 넘은 측정값 -->
@@ -428,25 +440,28 @@ onMounted(load)
     <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.outlet}px` }">원본 컬럼</b>
     <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.value}px` }">표준 용어</b>
     <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.limit}px` }">측정값</b>
-    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: '1673px' }">기준 대비</b>
+    <b :class="$style.rawHead" :style="{ top: `${2767 + afterMapping}px`, left: `${RAW_COL.vsOver}px` }">기준 대비</b>
 
     <div v-if="!rawShownRows.length" :class="$style.mapEmpty" :style="{ top: `${rawTop(0)}px` }">
       {{ loading ? '불러오는 중이에요…' : '집계에 쓰인 행이 없어요.' }}
     </div>
     <template v-for="(row, i) in rawShownRows" :key="row.measurement_id">
-      <b :class="$style.rawNo" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.no}px` }">
-        {{ row.filename }} #{{ row.source_row + 1 }}
-      </b>
-      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.date}px` }">{{ formatDay(row.measured_on) }}</div>
-      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.site}px` }">{{ row.site_name }} · {{ row.outlet }}</div>
-      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.outlet}px` }">{{ row.source_column }}</div>
-      <div :class="$style.rawCell" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.value}px` }">{{ termName(row.item_code) }}</div>
+      <b :class="[$style.rawNo, $style.rawClip]"
+         :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.no}px`, width: `${RAW_W.no}px` }"
+         :title="`${row.filename} #${row.source_row + 1}`">{{ row.filename }} #{{ row.source_row + 1 }}</b>
+      <div :class="[$style.rawCell, $style.rawClip]" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.date}px`, width: `${RAW_W.date}px` }">{{ formatDay(row.measured_on) }}</div>
+      <div :class="[$style.rawCell, $style.rawClip]" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.site}px`, width: `${RAW_W.site}px` }"
+           :title="`${row.site_name} · ${row.outlet}`">{{ row.site_name }} · {{ row.outlet }}</div>
+      <div :class="[$style.rawCell, $style.rawClip]" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.outlet}px`, width: `${RAW_W.outlet}px` }"
+           :title="row.source_column">{{ row.source_column }}</div>
+      <div :class="[$style.rawCell, $style.rawClip]" :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.value}px`, width: `${RAW_W.value}px` }"
+           :title="termName(row.item_code)">{{ termName(row.item_code) }}</div>
       <component :is="judge(row).over ? 'b' : 'div'"
-                 :class="judge(row).over ? $style.rawCellOver : $style.rawCell"
-                 :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.limit}px` }">{{ row.value_text }}</component>
+                 :class="[judge(row).over ? $style.rawCellOver : $style.rawCell, $style.rawClip]"
+                 :style="{ top: `${rawTop(i)}px`, left: `${RAW_COL.limit}px`, width: `${RAW_W.limit}px` }">{{ row.value_text }}</component>
       <component :is="judge(row).over ? 'b' : 'div'"
-                 :class="judge(row).over ? $style.rawVsOver : $style.rawCell"
-                 :style="{ top: `${rawTop(i) + (judge(row).over ? 3 : 0)}px`, left: `${RAW_COL.vsOver}px` }">{{ judge(row).text }}</component>
+                 :class="[judge(row).over ? $style.rawVsOver : $style.rawCell, $style.rawClip]"
+                 :style="{ top: `${rawTop(i) + (judge(row).over ? 3 : 0)}px`, left: `${RAW_COL.vsOver}px`, width: `${RAW_W.vsOver}px` }">{{ judge(row).text }}</component>
       <!-- 행 전체를 눌러 이 한 건이 어떻게 판정됐는지로 들어간다 -->
       <div :class="[$style.rawRowHit, 'row-hit']" role="button"
            :style="{ top: `${rawTop(i) - 34}px` }" @click="openRow(row)" />
@@ -472,10 +487,13 @@ onMounted(load)
   font-size: var(--font-body-03);
   color: #455772;
 }
+/* 지점·항목이 여럿이면 칩 하나가 줄 폭(1620)을 넘어 카드 밖으로 나간다.
+   text-overflow 는 flex 컨테이너에 안 먹으므로 inline-block 으로 둔다. */
 .interpretChip {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
+  max-width: 100%;
   height: 54px;
+  line-height: 50px;
   padding: 0 28px;
   box-sizing: border-box;
   border-radius: 30px;
@@ -483,6 +501,8 @@ onMounted(load)
   border: 2px solid #d0d0d0;
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* 표에 보여줄 게 없을 때 첫 행 자리에 한 줄 */
 .mapEmpty {
@@ -915,7 +935,7 @@ onMounted(load)
   position: absolute;
   top: 1486px;
   left: 121px;
-  width: 975px;
+  width: 1700px;
   height: 532px;
   box-sizing: border-box;
   margin: 0;
@@ -926,7 +946,10 @@ onMounted(load)
   font-size: var(--font-code);
   line-height: 38px;
   color: #374151;
-  overflow: hidden;
+  /* 원본은 overflow: hidden 이라 카드보다 긴 SQL 줄이 통째로 잘려 안 보였다.
+     세로는 스크립트가 줄 수만큼 높이를 잡아 주므로 가로만 밀어서 본다. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .sqlLine {
   white-space: pre;
@@ -1013,13 +1036,18 @@ onMounted(load)
   text-align: center;
   width: 126px;
 }
+ /* 원본은 196px 이라 '노말헥산추출물질(동식물유지류)' 같은 실제 용어가 두 줄이
+   되며 다음 행을 침범했다. 원본 컬럼 열(424) 앞까지 쓰고 한 줄로 자른다. */
 .mapSqlCol {
   position: absolute;
   left: 105px;
   line-height: 45px;
   display: inline-block;
   color: #000;
-  width: 196px;
+  width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
  /* 원본은 126px 이었지만 '생물화학적산소요구량' 같은 실제 용어가 줄바꿈되며
    다음 행을 침범한다. 매핑 방식 열(764) 앞까지 쓰고 한 줄로 자른다. */
@@ -1150,6 +1178,13 @@ onMounted(load)
   position: absolute;
   font-size: var(--font-body-03);
   color: #ff0000;
+}
+/* 표 칸은 폭 안에서 한 줄로 자른다. 전체 값은 title 로 본다. */
+.rawClip {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* 초과 행 클릭 영역 — 셀들 위에 투명하게 덮는다 */
 .rawRowHit {

@@ -296,8 +296,9 @@ function onDrop(event: DragEvent) {
     <template v-else>
       <div v-for="(file, i) in files" :key="file.key"
            :class="$style.fileCard" :style="{ top: `${cardTop(i)}px` }">
-        <b :class="$style.fileName">{{ file.name }}</b>
-        <div :class="[$style.fileMeta, file.state === 'failed' && $style.fileMetaError]">
+        <b :class="$style.fileName" :title="file.name">{{ file.name }}</b>
+        <div :class="[$style.fileMeta, file.state === 'failed' && $style.fileMetaError]"
+             :title="detailOf(file)">
           <span :class="$style.fileMetaSize">{{ formatSize(file.size) }}</span>
           <b> · {{ detailOf(file) }}</b>
         </div>
@@ -588,17 +589,27 @@ function onDrop(event: DragEvent) {
   position: absolute;
   top: 47px;
   left: 44px;
+  width: 1480px;
   font-size: var(--font-body-02);
   line-height: 45px;
   color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+/* 실패했을 때 서버 문구가 그대로 들어가는 줄이다. 폭 제한이 없으면 두 줄이
+   되면서 진행 막대(168)를 덮으므로 상태 알약(1557) 앞에서 끊는다. */
 .fileMeta {
   position: absolute;
   top: 92px;
   left: 44px;
+  width: 1480px;
   font-size: var(--font-body-03);
   line-height: 45px;
   color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .fileMetaSize {
   font-weight: 500;
