@@ -29,6 +29,12 @@ function closeOnOutside(event: MouseEvent) {
   if (root.value && !root.value.contains(event.target as Node)) open.value = false
 }
 
+/** 말풍선을 닫고 옮긴다. 같은 화면을 다시 눌러도 말풍선은 닫혀야 한다. */
+function goTo(path: string) {
+  open.value = false
+  router.push(path)
+}
+
 async function onSignOut() {
   if (signingOut.value) return
   signingOut.value = true
@@ -60,11 +66,18 @@ async function onSignOut() {
 
       <div :class="$style.divider" />
 
-      <div v-if="user" :class="[$style.action, 'row-hit']" @click="onSignOut">
-        {{ signingOut ? '로그아웃 중…' : '로그아웃' }}
-      </div>
+      <template v-if="user">
+        <div :class="[$style.action, $style.actionPlain, 'row-hit']"
+             @click="goTo('/open-api/keys')">
+          내 API
+        </div>
+        <div :class="$style.divider" />
+        <div :class="[$style.action, 'row-hit']" @click="onSignOut">
+          {{ signingOut ? '로그아웃 중…' : '로그아웃' }}
+        </div>
+      </template>
       <div v-else :class="[$style.action, $style.actionPrimary, 'row-hit']"
-           @click="router.push('/login')">
+           @click="goTo('/login')">
         로그인
       </div>
     </div>
@@ -136,5 +149,9 @@ async function onSignOut() {
 }
 .actionPrimary {
   color: #0053e3;
+}
+/* 화면을 옮기기만 하는 항목. 빨강(로그아웃)·파랑(로그인)과 무게를 구분한다. */
+.actionPlain {
+  color: #1f2937;
 }
 </style>

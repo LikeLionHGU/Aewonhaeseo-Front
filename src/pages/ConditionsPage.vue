@@ -8,13 +8,16 @@ import { useDesignScale } from '../composables/useDesignScale'
 import { useTermNames } from '../composables/useTermNames'
 import { ApiError, getAnalysisOptions, getStandardSets, runAnalysis } from '../api'
 import type { AnalysisOptions, Bucket, Metric, StandardSets } from '../api'
+import { FIELD_LABEL, parseQuestion } from '../lib/parseQuestion'
+import type { ParsedField, ParsedPeriod } from '../lib/parseQuestion'
 
 const router = useRouter()
 const route = useRoute()
 const { loadTerms, termName } = useTermNames()
 
-// 앞 화면에서 넘어온 질문. 자연어를 해석하는 API 가 없어서 문장은 그대로
-// 보여주기만 하고, 실제 조건은 아래에서 직접 고른다.
+// 앞 화면에서 넘어온 질문. 서버에 자연어를 해석하는 엔드포인트가 없어서
+// parseQuestion 이 규칙으로 조건을 읽어내 아래 선택 상태를 미리 채운다.
+// 읽어내지 못한 조건은 비워 두고 사용자가 직접 고른다.
 const question = computed(() => String(route.query.q ?? '').trim())
 
 // 조건 선택 상태 — 그룹별로 하나씩 고른다.
@@ -27,13 +30,27 @@ const metric = ref(String(route.query.metric ?? '평균'))
 // 그냥 텍스트 칸으로 떨어지고, 네이티브 피커 팝업은 이 페이지의 scale() 배율을
 // 따르지 않아 디자인과도 어긋난다. 그래서 select 로 직접 만든다.
 const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = Array.from({ length: 11 }, (_, i) => CURRENT_YEAR - i)
+const BASE_YEARS = Array.from({ length: 11 }, (_, i) => CURRENT_YEAR - i)
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1)
 
 const fromYear = ref('')
 const fromMonth = ref('')
 const toYear = ref('')
 const toMonth = ref('')
+
+/**
+ * 고를 수 있는 연도.
+ *
+ * 기본은 최근 11년이다. 질문에서 읽어낸 연도가 그 밖일 수 있어서(오래된 자료를
+ * 올린 기관도 있다) 지금 들어 있는 값은 목록에 넣어 준다. 없으면 select 가 빈
+ * 칸으로 보이고, 읽어낸 기간이 조용히 사라진다.
+ */
+const YEARS = computed(() => {
+  const held = [fromYear.value, toYear.value]
+    .map(Number)
+    .filter((year) => year && !BASE_YEARS.includes(year))
+  return [...new Set([...held, ...BASE_YEARS])].sort((a, b) => b - a)
+})
 
 const yearMonth = (y: string, m: string) => (y && m ? `${y}-${m.padStart(2, '0')}` : '')
 const customFrom = computed(() => yearMonth(fromYear.value, fromMonth.value))
@@ -56,8 +73,26 @@ const periodLabel = computed(() => customPeriod.value || period.value || '미지
 /** 프리셋 칩이 켜졌는지. 직접 입력한 기간이 있으면 프리셋은 꺼진 것으로 본다. */
 const periodOn = (label: string) => !customPeriod.value && period.value === label
 
+/**
+ * 질문에서 읽어낸 조건의 종류.
+ *
+ * 어느 값이 질문에서 왔는지 표시하지 않으면, 미리 채워진 선택이 그냥 기본값인지
+ * 질문을 해석한 결과인지 구분할 수 없다. 사용자가 직접 건드리면 표시를 뗀다 —
+ * 그 순간부터 질문에서 온 값이 아니기 때문이다.
+ */
+const readFromQuestion = ref<Set<ParsedField>>(new Set())
+const fromQuestion = (field: ParsedField) => readFromQuestion.value.has(field)
+
+function forget(...fields: ParsedField[]) {
+  if (!readFromQuestion.value.size) return
+  const next = new Set(readFromQuestion.value)
+  for (const field of fields) next.delete(field)
+  readFromQuestion.value = next
+}
+
 // 프리셋 칩을 고르면 직접 입력해 둔 값은 지운다.
 function selectPeriod(label: string) {
+  forget('period')
   period.value = label
   fromYear.value = ''
   fromMonth.value = ''
@@ -86,6 +121,31 @@ const dischargeScale = ref('')
 const BUCKETS: Record<string, Bucket> = { 월별: 'month', 분기별: 'quarter', 연별: 'year' }
 const METRICS: Record<string, Metric> = { 평균: 'avg', 최대: 'max', 최소: 'min', 건수: 'count' }
 const METRIC_LABELS = Object.keys(METRICS)
+
+/**
+ * 서버 값 → 이 화면의 칩 이름. 위 표를 거꾸로 읽는다.
+ *
+ * 칩 이름을 여기서 따로 적지 않는 이유는 어긋나기 때문이다 — 이 화면은 'year' 를
+ * '연별' 이라 부르고 질문 화면은 '연도별' 이라 부른다. 칩과 짝이 맞아야 하니
+ * 이 화면의 표가 기준이다. 'none'(기간 전체)은 칩이 없어서 undefined 가 나오고,
+ * 그 경우 아래에서 적용하지 않는다.
+ */
+const BUCKET_CHIP = Object.fromEntries(
+  Object.entries(BUCKETS).map(([label, value]) => [value, label]),
+) as Partial<Record<Bucket, string>>
+const METRIC_CHIP = Object.fromEntries(
+  Object.entries(METRICS).map(([label, value]) => [value, label]),
+) as Partial<Record<Metric, string>>
+
+// 집계 단위·방식 칩 — 직접 고르면 질문에서 읽었다는 표시를 뗀다.
+function selectUnit(label: string) {
+  forget('bucket')
+  unit.value = label
+}
+function selectMetric(label: string) {
+  forget('metric')
+  metric.value = label
+}
 
 function isoDay(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -138,6 +198,153 @@ const periodMisses = computed(() => {
 
 const canSubmit = computed(() => !loading.value && !loadError.value && Boolean(unit.value) && !submitting.value)
 
+/**
+ * 버튼 왼쪽에 뜨는 한 줄 안내.
+ *
+ * 순서가 중요하다 — 막는 것(오류·빠진 필수 조건)을 먼저 내고, 그다음에 "돌려도
+ * 기대와 다를 수 있다" 는 귀띔을 낸다. 원래는 템플릿 안에서 삼항으로 엮여 있어
+ * 조건을 하나 더 붙일 자리가 없었다.
+ */
+const notice = computed<{ text: string; tone: 'error' | 'warn' | 'plain' } | null>(() => {
+  if (loadError.value) return { text: loadError.value, tone: 'error' }
+  if (submitError.value) return { text: submitError.value, tone: 'error' }
+  if (loading.value) return null
+  if (!unit.value) return { text: '집계 단위를 골라주세요.', tone: 'plain' }
+  if (periodMisses.value) {
+    return { text: '고른 기간에 측정값이 없어요. 결과가 비어 나옵니다.', tone: 'warn' }
+  }
+  /*
+   * 배출규모를 비워 두면 규모에 따라 기준이 갈리는 항목은 서버가 기준선을 주지
+   * 않는다(2026-08-20 확인). 그 항목이 결과 화면의 첫 항목이면 "기준선 없음" 만
+   * 보이고 왜인지 알 수 없으므로, 돌리기 전에 알려 준다. 규모는 시설의 법적
+   * 구분이라 우리가 대신 고를 수는 없다.
+   */
+  if (standardSet.value && !dischargeScale.value) {
+    return {
+      text: '배출규모를 비워 두면 규모별로 기준이 갈리는 항목(BOD·총유기탄소·부유물질)에는 기준선이 나오지 않아요.',
+      tone: 'warn',
+    }
+  }
+  return null
+})
+
+// --- 질문에서 조건 읽어내기 ---
+
+/**
+ * 읽어낸 기간을 화면 상태로 옮긴다.
+ *
+ * 프리셋 칩과 겹치면 칩을 켠다 — 기간 계산이 range 한 곳에만 있게 된다. 그 밖의
+ * 기간은 직접 입력 칸에 넣는다. 칸이 연·월까지만 있어서 날짜는 월 단위로
+ * 떨어지는데, 서버로 보낼 값은 range 가 다시 만들므로 어긋나지 않는다.
+ */
+function applyPeriod(parsed: ParsedPeriod) {
+  if (parsed.preset && PRESET_MONTHS[parsed.preset]) {
+    selectPeriod(parsed.preset)
+    return
+  }
+  const [fromY, fromM] = parsed.from.split('-')
+  const [toY, toM] = parsed.to.split('-')
+  // select 의 option 값은 '3' 처럼 0 이 없는 형태다. '03' 을 넣으면 안 붙는다.
+  fromYear.value = fromY
+  fromMonth.value = String(Number(fromM))
+  toYear.value = toY
+  toMonth.value = String(Number(toM))
+  period.value = ''
+}
+
+/**
+ * 질문을 읽어 선택 상태를 채운다. 선택지를 받아온 뒤에 부른다 — 지점·항목은
+ * 서버가 실제로 갖고 있는 목록에만 붙이기 때문이다.
+ */
+function applyQuestion() {
+  const loaded = options.value
+  if (!question.value || !loaded) return
+
+  const parsed = parseQuestion(question.value, {
+    sites: loaded.sites ?? [],
+    items: (loaded.items ?? []).map((item) => ({
+      code: item.item_code,
+      name: termName(item.item_code),
+    })),
+  })
+
+  const read = new Set<ParsedField>()
+  if (parsed.site) {
+    site.value = parsed.site
+    read.add('site')
+  }
+  if (parsed.itemCode) {
+    itemCode.value = parsed.itemCode
+    read.add('item')
+  }
+  // 템플릿에서 넘어온 집계 값이 있으면 그게 먼저다 — 사용자가 방금 고른 것이다.
+  const unitChip = parsed.bucket && BUCKET_CHIP[parsed.bucket]
+  if (unitChip && !route.query.unit) {
+    unit.value = unitChip
+    read.add('bucket')
+  }
+  const metricChip = parsed.metric && METRIC_CHIP[parsed.metric]
+  if (metricChip && !route.query.metric) {
+    metric.value = metricChip
+    read.add('metric')
+  }
+  if (parsed.period) {
+    applyPeriod(parsed.period)
+    read.add('period')
+  }
+
+  // 마지막에 한 번에 넣는다. 위에서 부른 selectPeriod 가 forget('period') 을
+  // 거치므로, 먼저 넣으면 방금 표시한 것을 스스로 지운다.
+  readFromQuestion.value = read
+}
+
+/**
+ * 읽어낸 조건을 늘 같은 순서로 보여준다. Set 의 삽입 순서에 맡기면 질문에 따라
+ * 순서가 바뀌어 같은 화면이 매번 다르게 읽힌다.
+ */
+const FIELD_ORDER: ParsedField[] = ['site', 'item', 'period', 'bucket', 'metric']
+
+/** 질문에서 읽어낸 칸에 붙는 설명. 테두리 색만으로는 뜻이 전해지지 않는다. */
+const READ_HINT = '질문에서 읽어낸 조건이에요. 바꾸면 이 표시가 사라져요.'
+
+const aggregateRead = computed(() => fromQuestion('bucket') && fromQuestion('metric'))
+
+/**
+ * 템플릿으로 들어왔는지.
+ *
+ * 질문 화면의 '자주 쓰는 템플릿' 은 집계 단위·방식을 주소에 실어 보낸다. 그 제목
+ * ('기준 초과 구간 탐지')은 질문이 아니라 라벨이라 파서가 읽어낼 게 없는데, 그렇다고
+ * "조건을 찾지 못했다" 고 하면 실제로 채워진 칩과 어긋난다.
+ */
+const fromTemplate = computed(() => Boolean(route.query.unit || route.query.metric))
+
+/** 질문에서 무엇을 읽었고 무엇이 비었는지 한 줄로 안내한다. */
+const guideText = computed(() => {
+  if (loading.value) return '분석 조건을 불러오는 중이에요.'
+  if (!question.value) {
+    // 필수는 집계 단위 하나뿐이다. '누락된 조건' 이라고만 하면 무엇을 골라야
+    // 하는지 알 수 없고, 그걸 알려주는 문구는 저 아래 버튼 옆에 있다.
+    return unit.value
+      ? '조건을 확인하고 분석을 시작하세요. 비워 둔 항목은 전체로 분석해요.'
+      : '집계 단위를 골라주세요. 나머지는 비워 두면 전체로 분석해요.'
+  }
+
+  const read = FIELD_ORDER.filter(fromQuestion)
+  if (!read.length) {
+    return fromTemplate.value
+      ? '템플릿에서 집계 조건을 채웠어요. 나머지를 골라주세요.'
+      : '질문에서 조건을 찾지 못했어요. 아래에서 직접 골라주세요.'
+  }
+
+  const labels = read.map((field) => FIELD_LABEL[field]).join(' · ')
+  // 집계 단위는 없으면 분석을 시작할 수 없어서 그것만 따로 짚어 준다.
+  if (!unit.value) return `질문에서 읽은 조건 — ${labels}. 집계 단위를 골라주세요.`
+  if (read.length === FIELD_ORDER.length) {
+    return '질문에서 조건을 모두 읽었어요. 확인하고 분석을 시작하세요.'
+  }
+  return `질문에서 읽은 조건 — ${labels}. 나머지는 직접 골라주세요.`
+})
+
 async function load() {
   loading.value = true
   loadError.value = ''
@@ -152,6 +359,8 @@ async function load() {
     // 기준치는 대부분 한 세트뿐이라 미리 골라둔다.
     standardSet.value = standardSets.sets[0]?.standard_set ?? ''
     regionGrade.value = standardSets.region_grades[0] ?? ''
+    // 지점·항목 목록과 용어 이름이 다 온 뒤에 질문을 읽는다.
+    applyQuestion()
   } catch (error) {
     loadError.value =
       error instanceof ApiError && error.code !== 'HTTP_ERROR' && error.code !== 'NETWORK_ERROR'
@@ -210,8 +419,8 @@ onMounted(load)
     <div :class="$style.item" />
     <div :class="$style.inner" />
     <div :class="$style.rectangleDiv" />
-    <b :class="$style.b">분석 조건 확인</b>
-    <b :class="$style.b2">누락된 조건을 선택해주세요.</b>
+    <b :class="$style.b">분석 조건 확인<span :class="$style.requiredLegend">필수</span></b>
+    <b :class="$style.b2">{{ guideText }}</b>
     <b :class="$style.b3">분석 기간</b>
     <div :class="$style.div2">선택한 기간의 수질 측정 데이터를 원하는 시간 단위로 집계하여 평균과 추세를 확인합니다.</div>
     <div :class="$style.div3">선택한 기간의 값을 어떤 방식으로 모을지 정합니다.</div>
@@ -220,19 +429,23 @@ onMounted(load)
       분석에 사용할 데이터의 조회 기간을 설정합니다.
       <span v-if="dataPeriod" :class="$style.periodHint">{{ dataPeriod }}</span>
     </div>
-    <b :class="$style.b4">집계 단위</b>
+    <!-- 이 화면에서 반드시 골라야 하는 것은 집계 단위뿐이다(canSubmit 이 그것만
+         요구한다). 서버는 이것마저 비워도 받아주지만, 무엇으로 묶었는지가 결과의
+         뜻을 바꾸므로 기본값에 맡기지 않고 직접 고르게 한다. 나머지(지점·항목·기간·
+         기준치)는 비우면 '전체' 로 처리되니 표시하지 않는다. -->
+    <b :class="$style.b4">집계 단위<span :class="$style.required" aria-hidden="true">*</span><span :class="$style.srOnly">(필수)</span></b>
     <b :class="$style.b5">집계 방식</b>
     <b :class="$style.b6">적용 기준치</b>
     <div :class="$style.div6">직접 입력 (예: 2023년 1월 ~ 2023년 2월)</div>
     <div :class="$style.child2">
       <div :class="$style.ymGroup">
         <select v-model="fromYear" :class="[$style.ymSelect, $style.ymYear, !fromYear && $style.ymEmpty]"
-                :style="caret" aria-label="시작 연도">
+                :style="caret" aria-label="시작 연도" @change="forget('period')">
           <option value="" disabled>연도</option>
           <option v-for="y in YEARS" :key="y" :value="String(y)">{{ y }}년</option>
         </select>
         <select v-model="fromMonth" :class="[$style.ymSelect, $style.ymMonth, !fromMonth && $style.ymEmpty]"
-                :style="caret" aria-label="시작 월">
+                :style="caret" aria-label="시작 월" @change="forget('period')">
           <option value="" disabled>월</option>
           <option v-for="m in MONTHS" :key="m" :value="String(m)">{{ m }}월</option>
         </select>
@@ -240,12 +453,12 @@ onMounted(load)
       <span :class="$style.periodTilde">~</span>
       <div :class="$style.ymGroup">
         <select v-model="toYear" :class="[$style.ymSelect, $style.ymYear, !toYear && $style.ymEmpty]"
-                :style="caret" aria-label="종료 연도">
+                :style="caret" aria-label="종료 연도" @change="forget('period')">
           <option value="" disabled>연도</option>
           <option v-for="y in YEARS" :key="y" :value="String(y)">{{ y }}년</option>
         </select>
         <select v-model="toMonth" :class="[$style.ymSelect, $style.ymMonth, !toMonth && $style.ymEmpty]"
-                :style="caret" aria-label="종료 월">
+                :style="caret" aria-label="종료 월" @change="forget('period')">
           <option value="" disabled>월</option>
           <option v-for="m in MONTHS" :key="m" :value="String(m)">{{ m }}월</option>
         </select>
@@ -261,7 +474,7 @@ onMounted(load)
       <div :class="[$style.groupItem, periodOn('최근 1개월') && $style.chipOn, 'btn-fill']" />
       <div :class="[$style.div9, periodOn('최근 1개월') && $style.chipLabelOn]">최근 1개월</div>
     </div>
-    <div :class="[$style.rectangleContainer, 'btn']" role="button" @click="unit = '월별'">
+    <div :class="[$style.rectangleContainer, 'btn']" role="button" @click="selectUnit('월별')">
       <div :class="[$style.groupInner, unit === '월별' && $style.chipOn, 'btn-fill']" />
       <div :class="[$style.div10, unit === '월별' && $style.chipLabelOn]">월별</div>
     </div>
@@ -269,15 +482,15 @@ onMounted(load)
          기능이 없다. 대신 실제로 쓰이는 집계 방식(metric)을 여기서 고른다. -->
     <div v-for="(label, mi) in METRIC_LABELS" :key="label"
          :class="[$style.metricChip, 'btn']" role="button"
-         :style="{ left: `${219 + mi * 229}px` }" @click="metric = label">
+         :style="{ left: `${219 + mi * 229}px` }" @click="selectMetric(label)">
       <div :class="[$style.metricChipBg, metric === label && $style.chipOn, 'btn-fill']" />
       <div :class="[$style.metricChipLabel, metric === label && $style.chipLabelOn]">{{ label }}</div>
     </div>
-    <div :class="[$style.rectangleParent4, 'btn']" role="button" @click="unit = '연별'">
+    <div :class="[$style.rectangleParent4, 'btn']" role="button" @click="selectUnit('연별')">
       <div :class="[$style.groupInner, unit === '연별' && $style.chipOn, 'btn-fill']" />
       <div :class="[$style.div10, unit === '연별' && $style.chipLabelOn]">연별</div>
     </div>
-    <div :class="[$style.rectangleParent5, 'btn']" role="button" @click="unit = '분기별'">
+    <div :class="[$style.rectangleParent5, 'btn']" role="button" @click="selectUnit('분기별')">
       <div :class="[$style.groupInner, unit === '분기별' && $style.chipOn, 'btn-fill']" />
       <div :class="[$style.div15, unit === '분기별' && $style.chipLabelOn]">분기별</div>
     </div>
@@ -294,26 +507,42 @@ onMounted(load)
       <div :class="[$style.div11, periodOn('최근 3년') && $style.chipLabelOn]">최근 3년</div>
     </div>
     <!-- 요약 줄 — 지점·항목은 실제로 고르는 자리다. 원본은 값이 박혀 있었는데
-         서버가 site_names / item_codes 를 받으므로 선택으로 바꿨다. -->
+         서버가 site_names / item_codes 를 받으므로 선택으로 바꿨다.
+         질문에서 읽어낸 칸은 테두리로 표시해, 미리 채워진 값이 기본값이 아니라
+         질문을 해석한 결과라는 걸 알 수 있게 한다. -->
     <div :class="$style.summaryRow">
-      <label :class="[$style.summaryChip, $style.summaryChipWide, $style.summarySelect]">
+      <label :class="[$style.summaryChip, $style.summaryChipWide, $style.summarySelect,
+                      fromQuestion('site') && $style.summaryChipRead]"
+             :title="fromQuestion('site') ? READ_HINT : undefined">
         <span :class="$style.summaryChipLabel">측정 지점</span>
-        <select v-model="site" :class="$style.chipSelect" :style="caret" aria-label="측정 지점">
+        <select v-model="site" :class="$style.chipSelect" :style="caret" aria-label="측정 지점"
+                @change="forget('site')">
           <option value="">전체</option>
           <option v-for="name in options?.sites ?? []" :key="name" :value="name">{{ name }}</option>
         </select>
       </label>
-      <label :class="[$style.summaryChip, $style.summarySelect]">
+      <label :class="[$style.summaryChip, $style.summarySelect,
+                      fromQuestion('item') && $style.summaryChipRead]"
+             :title="fromQuestion('item') ? READ_HINT : undefined">
         <span :class="$style.summaryChipLabel">측정 항목</span>
-        <select v-model="itemCode" :class="$style.chipSelect" :style="caret" aria-label="측정 항목">
+        <select v-model="itemCode" :class="$style.chipSelect" :style="caret" aria-label="측정 항목"
+                @change="forget('item')">
           <option value="">전체</option>
           <option v-for="item in options?.items ?? []" :key="item.item_code" :value="item.item_code">
             {{ termName(item.item_code) }} ({{ item.n }})
           </option>
         </select>
       </label>
-      <div :class="$style.summaryChip">기간: {{ periodLabel }}</div>
-      <div :class="$style.summaryChip">집계: {{ unit || '미지정' }} · {{ metric }}</div>
+      <div :class="[$style.summaryChip, fromQuestion('period') && $style.summaryChipRead]"
+           :title="fromQuestion('period') ? READ_HINT : undefined">기간: {{ periodLabel }}</div>
+      <!-- 집계 칩은 단위와 방식을 한 칸에 보여준다. 한쪽만 질문에서 왔을 때
+           표시를 붙이면 손으로 고른 값까지 질문에서 읽은 것처럼 보이므로,
+           보이는 값이 둘 다 질문에서 온 경우에만 붙인다. 어느 쪽을 읽었는지는
+           위 안내 문구가 따로 알려준다. -->
+      <div :class="[$style.summaryChip, aggregateRead && $style.summaryChipRead]"
+           :title="aggregateRead ? READ_HINT : undefined">
+        집계: {{ unit || '미지정' }} · {{ metric }}
+      </div>
     </div>
 
     <div :class="$style.div21">기준치 세트 · 지역 구분 · 배출규모</div>
@@ -341,23 +570,18 @@ onMounted(load)
       <div :class="[$style.groupChild14, canSubmit && 'btn-fill', !canSubmit && $style.submitOffBg]" />
       <b :class="$style.b8">{{ submitting ? '분석 중…' : '분석 시작하기' }}</b>
     </div>
-    <div v-if="loadError || submitError || periodMisses || (!loading && !unit)"
+    <div v-if="notice"
          :class="[$style.conditionNotice,
-                  (loadError || submitError) && $style.conditionNoticeError,
-                  !loadError && !submitError && periodMisses && $style.conditionNoticeWarn]">
-      {{
-        loadError || submitError ||
-        (periodMisses
-          ? '고른 기간에 측정값이 없어요. 결과가 비어 나옵니다.'
-          : '집계 단위를 골라주세요.')
-      }}
+                  notice.tone === 'error' && $style.conditionNoticeError,
+                  notice.tone === 'warn' && $style.conditionNoticeWarn]">
+      {{ notice.text }}
     </div>
     <div :class="$style.child4" />
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
     <AccountMenu />
     <div :class="[$style.div22, 'link']" @click="router.push('/data')">내 데이터</div>
     <div :class="[$style.div23, 'link']" @click="router.push('/ask')">분석하기</div>
-    <div :class="$style.div24">문의하기</div>
+    <div :class="[$style.div24, 'link']" @click="router.push('/open-api')">오픈 API 신청</div>
     <div :class="[$style.div25, 'link']" @click="router.push('/ask')">←</div>
   </div>
   </div>
@@ -457,6 +681,13 @@ onMounted(load)
 }
 .summaryChipWide {
   min-width: 363px;
+}
+/* 질문에서 읽어낸 칸. 값만 채워 넣으면 기본값과 구분되지 않아 테두리로 표시한다.
+   배경은 옅게만 바꾼다 — 이 칩들은 그대로 고칠 수 있는 자리이므로 '확정' 처럼
+   진하게 칠하면 손대면 안 되는 것처럼 보인다. */
+.summaryChipRead {
+  border-color: #0053e3;
+  background-color: #f2f8ff;
 }
 /* 지점·항목 칩은 고르는 자리다. 칩 모양은 그대로 두고 안에 select 를 넣는다. */
 .summarySelect {
@@ -704,12 +935,19 @@ onMounted(load)
   color: #002f5f;
   flex-shrink: 0;
 }
+/* 원본은 '누락된 조건을 선택해주세요.' 한 줄 고정이었다. 이제 질문에서 무엇을
+   읽었는지에 따라 문장이 길어질 수 있어, 칸을 넘기면 끝을 줄인다 — 고정 캔버스라
+   넘친 글자가 오른쪽으로 흘러 나가면 그대로 잘려 보인다. */
 .b2 {
   position: absolute;
   top: 650px;
   left: 219px;
+  width: 1520px;
   font-size: var(--font-body-01);
   color: #002f5f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   flex-shrink: 0;
 }
 .b3 {
@@ -773,6 +1011,37 @@ onMounted(load)
   line-height: 45px;
   color: #00559e;
   flex-shrink: 0;
+}
+/* 제목 옆 범례. 별표가 첫 화면 아래쪽 경계에 걸려 있어서, 이 화면에 별표
+   규칙이 있다는 것부터 위에서 알려 준다. */
+.requiredLegend {
+  margin-left: 16px;
+  font-size: var(--font-body-03);
+  font-weight: 600;
+  color: #6b7280;
+}
+.requiredLegend::before {
+  content: '*';
+  margin-right: 4px;
+  color: #d92d20;
+  font-weight: 700;
+}
+/* 필수 표시. 별표만으로는 화면 낭독기에 뜻이 전해지지 않아 .srOnly 로 '(필수)'
+   를 함께 둔다. */
+.required {
+  margin-left: 4px;
+  color: #d92d20;
+  font-weight: 700;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .b5 {
   position: absolute;

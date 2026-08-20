@@ -14,6 +14,9 @@ import UploadPage from '../pages/UploadPage.vue'
 import MappingPage from '../pages/MappingPage.vue'
 import TermsPage from '../pages/TermsPage.vue'
 import TermsDonePage from '../pages/TermsDonePage.vue'
+import OpenApiPage from '../pages/OpenApiPage.vue'
+import OpenApiApplyPage from '../pages/OpenApiApplyPage.vue'
+import OpenApiKeysPage from '../pages/OpenApiKeysPage.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -42,6 +45,9 @@ export const router = createRouter({
     { path: '/mapping', name: 'mapping', component: MappingPage },
     { path: '/terms', name: 'terms', component: TermsPage },
     { path: '/terms-done', name: 'terms-done', component: TermsDonePage },
+    { path: '/open-api', name: 'open-api', component: OpenApiPage },
+    { path: '/open-api/apply', name: 'open-api-apply', component: OpenApiApplyPage },
+    { path: '/open-api/keys', name: 'open-api-keys', component: OpenApiKeysPage },
   ],
 })
 
@@ -51,11 +57,13 @@ export const router = createRouter({
  * 나머지는 /auth/me 로 한 번 확인하고, 아니면 로그인 화면으로 보낸다. 확인은
  * useAuth 가 한 번만 하고 결과를 들고 있으므로 이동할 때마다 묻지 않는다.
  *
- * 주의: 이건 화면 흐름일 뿐 보호 장치가 아니다. 백엔드의 데이터 엔드포인트
- * (/files·/analyses·/measurements)는 2026-08-19 확인 시점에 쿠키 없이도
- * 열려 있었다. 실제 차단은 서버가 해야 한다.
+ * 이건 화면 흐름을 위한 것이고, 실제 차단은 서버가 한다. 2026-08-20 확인 시점에
+ * 데이터 엔드포인트(/files·/analyses·/standards·/dictionary)는 모두 쿠키 없이
+ * 401 AUTH_REQUIRED 를 내고, 데이터도 계정별로 나뉘어 있다.
  */
-const PUBLIC_ROUTES = new Set(['landing', 'login', 'signup'])
+// open-api 는 소개 글이라 로그인 없이 열어 둔다 — 신청할지 정하려면 먼저 읽어야
+// 한다. 신청서(open-api-apply)는 공개하지 않는다.
+const PUBLIC_ROUTES = new Set(['landing', 'login', 'signup', 'open-api'])
 
 router.beforeEach(async (to) => {
   const { ensureLoaded } = useAuth()

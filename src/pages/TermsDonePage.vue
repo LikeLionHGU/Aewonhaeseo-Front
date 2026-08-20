@@ -133,7 +133,7 @@ onMounted(load)
   <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
-    <div :class="$style.div3">문의하기</div>
+    <div :class="[$style.div3, 'link']" @click="router.push('/open-api')">오픈 API 신청</div>
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
     <AccountMenu />
 
