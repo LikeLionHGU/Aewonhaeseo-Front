@@ -271,6 +271,28 @@ const RAW_W = { no: 330, date: 150, site: 300, outlet: 250, value: 240, limit: 1
 
 const dividers = computed(() => [634, 832, 1176, 2084 + sqlShift.value, 2187 + sqlShift.value])
 
+/**
+ * 결과 화면으로 올라간다.
+ *
+ * 원래는 router.back() 이었는데, 행 상세 화면의 '←' 가 이 화면을 push 로 열기
+ * 때문에 히스토리가 [근거, 행 상세, 근거] 가 된다. 그 상태에서 back() 은 행 상세로
+ * 되돌아가고, 거기서 다시 '←' 를 누르면 근거를 또 push — 두 화면을 빠져나올 수 없다
+ * (2026-08-21 확인).
+ *
+ * 다른 화면들처럼 정해진 상위로 올라간다. 주소를 직접 열고 들어온 경우에도 갈 곳이
+ * 생긴다 — back() 은 그럴 때 앱 밖으로 나가거나 아무 일도 하지 않았다.
+ */
+function backToResults() {
+  const executionId = String(route.query.executionId ?? detail.value?.execution_id ?? '')
+  router.push({
+    name: 'results',
+    query: {
+      ...(executionId ? { executionId } : {}),
+      ...(question.value ? { q: question.value } : {}),
+    },
+  })
+}
+
 /** 이 측정값 한 건이 어떻게 판정됐는지 보여주는 화면으로. */
 function openRow(row: AnalysisMeasurement) {
   router.push({
@@ -468,7 +490,7 @@ onMounted(load)
     </template>
 
     <div :class="$style.child18" :style="{ top: `${footerTop}px` }" />
-    <div :class="[$style.div37, 'link']" @click="router.back()">←</div>
+    <div :class="[$style.div37, 'link']" @click="backToResults">←</div>
   </div>
   </div>
 </template>
