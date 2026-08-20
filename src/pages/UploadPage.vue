@@ -6,6 +6,7 @@ import uploadIcon from '../assets/upload-large.svg'
 import AccountMenu from '../components/AccountMenu.vue'
 import { useDesignScale } from '../composables/useDesignScale'
 import { ApiError, ingestFile, runMapping, uploadFile } from '../api'
+import { SAMPLE_FILENAME, fetchSampleFile, findUploadedSample } from '../lib/sampleData'
 import type { MappingSummary } from '../api'
 
 const DESIGN_WIDTH = 1920
@@ -44,6 +45,10 @@ type UploadedFile = {
   /** 적재된 측정값 수. 확인할 컬럼이 남아 있으면 적재하지 않아 비어 있다. */
   inserted?: number
   error?: string
+  /** 샘플 파일로 시험한 카드. 안내 문구가 달라진다. */
+  sample?: boolean
+  /** 이미 올라와 있던 샘플을 다시 쓴 경우 — 새로 올리지 않았다. */
+  reused?: boolean
 }
 
 // 같은 이름·크기의 파일을 다시 올릴 수 있어서 이름을 키로 쓰면 안 된다.
@@ -99,7 +104,12 @@ function statusOf(file: UploadedFile) {
 
 /** 카드 두 번째 줄 — 파일 크기 뒤에 붙는 설명. */
 function detailOf(file: UploadedFile) {
-  if (file.state === 'uploading') return `올리는 중 ${Math.round(file.progress * 100)}%`
+  if (file.state === 'uploading') {
+    // 샘플은 올리기 전에 서버에 이미 있는지 먼저 본다. 그 사이 진행률은 뜻이 없다.
+    if (file.reused) return '이미 올라와 있는 샘플을 씁니다'
+    if (file.sample && file.progress === 0) return '샘플 파일 확인 중…'
+    return `올리는 중 ${Math.round(file.progress * 100)}%`
+  }
   if (file.state === 'mapping') return '용어 매핑 중'
   if (file.state === 'ingesting') return '측정값 넣는 중'
   if (file.state === 'failed') return file.error ?? '업로드하지 못했어요'
@@ -107,7 +117,8 @@ function detailOf(file: UploadedFile) {
   const left = file.summary.needs_review + file.summary.unmapped
   const rate = `자동 매핑 ${Math.round(file.summary.auto_mapped_rate)}%`
   if (left > 0) return `${rate} · 확인 필요 ${left}건`
-  return file.inserted !== undefined ? `${rate} · 측정값 ${file.inserted}건` : rate
+  const done = file.inserted !== undefined ? `${rate} · 측정값 ${file.inserted}건` : rate
+  return file.reused ? `${done} · 이미 올라와 있던 샘플` : done
 }
 
 /**
@@ -137,6 +148,26 @@ function barRatio(file: UploadedFile) {
  * 카드는 files 에 넣은 뒤 배열에서 다시 꺼내 쓴다. push 에 넘긴 원본 객체를
  * 그대로 고치면 반응형 프록시를 거치지 않아 화면이 갱신되지 않는다.
  */
+/**
+ * 매핑하고, 확인할 컬럼이 없으면 적재까지 한다.
+ *
+ * 업로드를 건너뛴 경우(이미 올라와 있는 샘플)에도 같은 뒷단을 타야 카드가 같은
+ * 상태를 거친다. 적재를 해야 분석이 볼 수 있고, 확인할 컬럼이 남아 있으면 검수를
+ * 마친 뒤 용어 확인 화면에서 적재한다.
+ */
+async function mapAndIngest(fileId: number, card: UploadedFile) {
+  card.state = 'mapping'
+  const result = await runMapping(fileId)
+  card.summary = result.summary
+
+  if (result.summary.needs_review + result.summary.unmapped === 0) {
+    card.state = 'ingesting'
+    const ingested = await ingestFile(fileId)
+    card.inserted = ingested.inserted_values
+  }
+  card.state = 'ready'
+}
+
 async function runPipeline(source: File, card: UploadedFile) {
   try {
     const created = await uploadFile(source, (ratio) => {
@@ -144,22 +175,59 @@ async function runPipeline(source: File, card: UploadedFile) {
     })
     card.fileId = created.id
     card.progress = 1
-    card.state = 'mapping'
-
-    const result = await runMapping(created.id)
-    card.summary = result.summary
-
-    // 확인할 컬럼이 없으면 바로 적재한다. 적재를 해야 분석이 볼 수 있다.
-    // 남아 있으면 검수를 마친 뒤 용어 확인 화면에서 적재한다.
-    if (result.summary.needs_review + result.summary.unmapped === 0) {
-      card.state = 'ingesting'
-      const ingested = await ingestFile(created.id)
-      card.inserted = ingested.inserted_values
-    }
-    card.state = 'ready'
+    await mapAndIngest(created.id, card)
   } catch (error) {
     card.state = 'failed'
     card.error = messageOf(error)
+  }
+}
+
+// --- 샘플 파일로 시험하기 ---
+
+const sampleBusy = ref(false)
+
+/**
+ * public/sample 의 CSV 를 올려 이 화면의 흐름을 그대로 시험한다.
+ *
+ * 이미 올라와 있으면 다시 올리지 않는다 — 적재는 파일 단위로만 멱등해서, 같은
+ * 데이터가 두 파일로 올라가면 같은 달에 값이 두 개가 되고 평균과 초과 판정이
+ * 달라진다. 파일 삭제 API 가 없어 되돌릴 수도 없다.
+ */
+async function useSampleFile() {
+  if (sampleBusy.value) return
+  sampleBusy.value = true
+  errors.value = []
+
+  files.value.push({
+    key: nextKey++,
+    name: SAMPLE_FILENAME,
+    size: 0,
+    progress: 0,
+    state: 'uploading',
+    sample: true,
+  })
+  const card = files.value[files.value.length - 1]
+  void revealUploadedList()
+
+  try {
+    const existing = await findUploadedSample()
+    if (existing) {
+      card.fileId = existing.id
+      card.size = existing.size_bytes
+      card.progress = 1
+      card.reused = true
+      await mapAndIngest(existing.id, card)
+    } else {
+      const file = await fetchSampleFile()
+      card.size = file.size
+      // runPipeline 이 자기 실패를 카드에 적으므로 여기서 다시 감싸지 않는다.
+      await runPipeline(file, card)
+    }
+  } catch (error) {
+    card.state = 'failed'
+    card.error = messageOf(error)
+  } finally {
+    sampleBusy.value = false
   }
 }
 
@@ -280,6 +348,10 @@ function onDrop(event: DragEvent) {
     <div :class="[$style.rectangleParent, 'btn']" role="button" @click="pickFile">
       <div :class="[$style.groupChild, 'btn-fill']" />
       <b :class="$style.b13">파일 선택</b>
+    </div>
+    <!-- 올릴 파일이 없어도 이 화면이 무엇을 하는지 보려면 시험할 파일이 필요하다. -->
+    <div :class="[$style.sampleTry, !sampleBusy && 'link']" role="button" @click="useSampleFile">
+      {{ sampleBusy ? '샘플 파일 준비 중…' : '올릴 파일이 없다면 샘플 파일로 시험해보기 →' }}
     </div>
     <div :class="$style.formatNote">
       <span>지원 형식: .xlsx · .xls · .csv</span>
@@ -519,6 +591,18 @@ function onDrop(event: DragEvent) {
 /* 지원 형식 안내 — 원본은 "지원 형식…" · "|" · "파일당 최대…" 세 조각을 각각
    하드코딩된 오프셋으로 놓아서, 글자 크기가 바뀌면 간격과 중앙이 동시에
    틀어졌다. 한 줄로 묶어 flex 로 가운데 정렬한다. */
+/* 파일 선택 버튼(1139~1195)과 형식 안내(1274) 사이. 가운데 정렬은 형식 안내와
+   같은 방식으로 맞춘다. */
+.sampleTry {
+  position: absolute;
+  top: 1207px;
+  left: 0px;
+  width: 100%;
+  text-align: center;
+  line-height: 45px;
+  font-weight: 600;
+  color: #0053e3;
+}
 .formatNote {
   position: absolute;
   top: 1274px;

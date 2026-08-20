@@ -6,14 +6,8 @@ import uploadIcon from '../assets/upload.svg'
 import analyzeIcon from '../assets/analyze.svg'
 import AccountMenu from '../components/AccountMenu.vue'
 import { useDesignScale } from '../composables/useDesignScale'
-import {
-  ApiError,
-  getAnalysisOptions,
-  ingestFile,
-  listFiles,
-  runMapping,
-  uploadFile,
-} from '../api'
+import { ApiError, getAnalysisOptions, ingestFile, runMapping, uploadFile } from '../api'
+import { fetchSampleFile, findUploadedSample } from '../lib/sampleData'
 
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 1330
@@ -72,46 +66,6 @@ function describe(error: unknown, fallback: string) {
 }
 
 // --- 샘플 데이터 ---
-
-/**
- * 서버에 올라가는 이름. 목록에서 바로 알아볼 수 있어야 하고, 이 이름으로 이미
- * 올라와 있는지 찾아 같은 파일을 두 번 올리지 않는다 — 삭제 API 가 없어서
- * 누를 때마다 쌓이면 지울 방법이 없다.
- *
- * 이 이름은 바꾸지 말 것(2026-08-20 실제 서버 확인). 적재는 파일 단위로만
- * 멱등해서, 이름이 달라지면 새 파일로 올라가고 예전 파일의 측정값이 그대로 남는다.
- * 같은 달에 값이 두 개가 되어 평균이 흐려지고 초과 판정까지 달라진다.
- *
- * 그래서 샘플 CSV 내용을 고쳐도 이미 체험해 본 계정은 예전 데이터를 계속 본다.
- * 그게 값이 섞이는 것보다는 낫다고 보고 이름을 고정했다.
- */
-const SAMPLE_FILENAME = '샘플-수질측정자료.csv'
-
-/** public/sample 에 들어 있는 CSV. 하위 경로 배포에서도 맞도록 BASE_URL 을 쓴다. */
-const SAMPLE_URL = `${import.meta.env.BASE_URL}sample/water-quality-sample.csv`
-
-async function fetchSampleFile() {
-  const res = await fetch(SAMPLE_URL)
-  if (!res.ok) throw new ApiError(res.status, 'SAMPLE_MISSING', '샘플 파일을 찾지 못했어요')
-  return new File([await res.blob()], SAMPLE_FILENAME, { type: 'text/csv' })
-}
-
-/**
- * 이미 올라와 있는 샘플 파일. 있으면 다시 올리지 않고 그 파일로 이어서 한다.
- *
- * 같은 이름이 여러 벌 있을 수 있다 — 샘플 CSV 내용이 바뀐 뒤 예전 것을 이미
- * 올려 둔 계정이 그렇다. 먼저 찾은 것을 쓰면 목록 순서에 따라 옛 데이터로
- * 되돌아가므로 가장 최근에 올린 것을 고른다.
- */
-async function findUploadedSample() {
-  const page = await listFiles({ size: 50 })
-  return (
-    page.items
-      .filter((item) => item.filename === SAMPLE_FILENAME)
-      // 값이 빠져 오면 localeCompare 가 터져 체험이 통째로 막힌다. 빈 문자열로 받는다.
-      .sort((a, b) => (b.uploaded_at ?? '').localeCompare(a.uploaded_at ?? ''))[0] ?? null
-  )
-}
 
 async function connectSampleData() {
   if (state.value === 'seeding') return
