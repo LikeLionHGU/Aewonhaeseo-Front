@@ -128,6 +128,14 @@ export function get<T>(path: string) {
   return request<T>(path)
 }
 
+/**
+ * DELETE. 204 로 본문이 없이 오는 경우가 있어 request() 가 null 을 돌려준다 —
+ * 부르는 쪽은 void 로 받으면 된다.
+ */
+export function del<T>(path: string) {
+  return request<T>(path, { method: 'DELETE' })
+}
+
 export function post<T>(path: string, payload?: unknown) {
   return request<T>(path, {
     method: 'POST',

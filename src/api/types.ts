@@ -159,26 +159,6 @@ export interface VerdictRequest {
   reviewed_by?: string
 }
 
-// --- 측정값 통계 ---
-
-export interface MeasurementByItem {
-  item_code: string
-  n: number
-  avg_value: number
-  min_value: number
-  max_value: number
-}
-
-export interface MeasurementSummary {
-  totals: {
-    total_values: number
-    distinct_items: number
-    distinct_sites: number
-  }
-  by_item: MeasurementByItem[]
-  exceeded: unknown[]
-}
-
 // --- 기준치 ---
 
 export interface StandardSet {
@@ -201,40 +181,6 @@ export interface StandardSets {
   scales: StandardScale[]
   /** 아직 사람이 검증하지 않은 기준치 행 수. */
   unverified_count: number
-}
-
-export interface StandardLimit {
-  item_code: string
-  region_grade: string
-  /** 하한. pH 처럼 범위로 규정된 항목에만 있다. */
-  limit_min?: number
-  limit_max: number
-  unit?: string
-  legal_basis: string
-  legal_article: string
-  source: string
-  /** 이 기준이 걸리는 배출규모. 규모와 무관한 항목은 null 이다. */
-  scale?: 'large' | 'small' | null
-}
-
-export interface ExceedanceItem {
-  site_name: string
-  outlet: string
-  measured_on: string
-  item_code: string
-  value_num: number
-  limit_min?: number
-  limit_max: number
-  limit_source: string
-  verdict: string
-}
-
-export interface Exceedances {
-  standard_set: string
-  region_grade: string
-  exceeded_count: number
-  limit_mismatch_count: number
-  items: ExceedanceItem[]
 }
 
 // --- 분석 ---
@@ -336,22 +282,6 @@ export interface AnalysisOptions {
   period: { first_date?: string; last_date?: string }
 }
 
-// --- 사전 ---
-
-export interface DictionaryVersion {
-  version: string
-  content_hash: string
-  generated_at: string
-  counts: {
-    measurement_terms: number
-    metadata_terms: number
-    synonyms: number
-    verified_terms: number
-  }
-  excluded_inferred: boolean
-  stale: boolean
-}
-
 // --- 용어 사전 ---
 
 export interface DictionaryTerm {
@@ -396,8 +326,8 @@ export interface AuthUser {
   id: number
   email: string
   display_name: string
-  /** 확인된 값은 'ADMIN'. 일반 사용자 값은 아직 못 봐서 좁히지 않는다. */
-  role: string
+  /** 스펙에 enum 으로 선언돼 있다(2026-08-20 /v3/api-docs 확인). 가입은 USER 로 만들어진다. */
+  role: 'USER' | 'ADMIN'
 }
 
 export interface LoginRequest {
@@ -410,4 +340,63 @@ export interface RegisterRequest {
   /** 8~72자. 서버가 VALIDATION_FAILED 로 걸러낸다. */
   password: string
   display_name: string
+}
+
+// --- Open API (기업용 키 발급) ---
+//
+// 발급·조회는 관리자 경로다(/api/v1/admin/open-api/...). 일반 사용자 쿠키로 부르면
+// 403 ACCESS_DENIED 가 온다(2026-08-21 확인). 발급된 키는 X-API-Key 헤더로
+// /open-api/v1/* 을 부를 때 쓴다 — 그쪽은 이 앱이 아니라 기업 서버가 부른다.
+
+export interface OpenApiOrganization {
+  id: number
+  name: string
+  active: boolean
+  created_at: string
+}
+
+export interface OpenApiKey {
+  id: number
+  name: string
+  /** 키 앞부분만. 원문은 발급 응답에 한 번만 실려 온다. */
+  prefix: string
+  active: boolean
+  requests_per_minute: number
+  last_used_at?: string
+  created_at: string
+  revoked_at?: string
+}
+
+/** 발급 응답. api_key 는 이때만 온다 — 다시 조회할 수 없다. */
+export interface OpenApiIssued {
+  organization: OpenApiOrganization
+  key: OpenApiKey
+  api_key: string
+  /** 서버가 붙여 주는 주의 문구. 화면에 그대로 보여준다. */
+  warning?: string
+}
+
+export interface CreateOrganizationRequest {
+  name: string
+  key_name: string
+  requests_per_minute?: number
+}
+
+export interface IssueKeyRequest {
+  key_name: string
+  requests_per_minute?: number
+}
+
+/**
+ * 기업 담당자가 자기 키를 직접 발급받을 때 보내는 것.
+ *
+ * 이 경로는 2026-08-21 시점에 서버에 없다(404 RESOURCE_NOT_FOUND). 관리자가 대신
+ * 발급하는 흐름은 담당자 입장에서 끊기므로 담당자용 경로를 요청해 두었고
+ * (docs/백엔드-요청_담당자-직접-발급.md), 화면은 그 경로를 전제로 붙여 두었다.
+ * 서버에 생기면 그대로 동작한다.
+ */
+export interface SelfIssueKeyRequest {
+  organization_name: string
+  key_name: string
+  requests_per_minute?: number
 }

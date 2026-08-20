@@ -1,9 +1,15 @@
 // 화면에서 부르는 엔드포인트 모음.
 // 경로와 파라미터 이름은 2026-08-17 에 실제 서버로 확인한 것과 같다.
 
-import { get, post, query, upload } from './client'
+import { del, get, post, query, upload } from './client'
 import type {
   AnalysisDetail,
+  CreateOrganizationRequest,
+  IssueKeyRequest,
+  OpenApiIssued,
+  OpenApiKey,
+  OpenApiOrganization,
+  SelfIssueKeyRequest,
   AuthUser,
   AnalysisMeasurement,
   AnalysisHistoryItem,
@@ -11,18 +17,14 @@ import type {
   AnalysisRequest,
   AnalysisResult,
   Bucket,
-  DictionaryVersion,
-  Exceedances,
   FileItem,
   FilePreview,
   FileStatus,
   IngestResult,
   MappingResult,
   MappingRounds,
-  MeasurementSummary,
   Page,
   ReviewItem,
-  StandardLimit,
   LoginRequest,
   RegisterRequest,
   StandardSets,
@@ -103,11 +105,6 @@ export function getMappingRounds(fileId: number) {
   return get<MappingRounds>(`${V1}/files/${fileId}/mapping/summary`)
 }
 
-/** 컬럼명 하나를 넣어보고 어떤 용어로 붙을지 미리 본다. */
-export function previewColumn(name: string) {
-  return post<Record<string, unknown>>(`${V1}/mapping/preview`, { name })
-}
-
 // --- 적재 ---
 
 /** 매핑 결과를 측정값 테이블로 적재한다. 멱등하다 — 다시 부르면 교체된다. */
@@ -137,40 +134,10 @@ export function decideReview(id: number, body: VerdictRequest) {
   return post<ReviewItem>(`${V1}/reviews/${id}/verdict`, body)
 }
 
-// --- 측정값 통계 ---
-
-export function getMeasurementSummary(fileId?: number) {
-  return get<MeasurementSummary>(`${V1}/measurements/summary${query({ file_id: fileId })}`)
-}
-
 // --- 기준치 ---
 
 export function getStandardSets() {
   return get<StandardSets>(`${V1}/standards`)
-}
-
-/**
- * 기준치 표.
- *
- * scale 은 필수다 — BOD·COD·부유물질처럼 배출규모에 따라 기준이 갈리는 항목이
- * 있어서, 규모를 정하지 않으면 서버가 400 을 낸다(2026-08-17 확인).
- * 규모와 무관한 항목(총질소·총인·수소이온농도)은 scale 이 null 로 온다.
- */
-export function getStandardLimits(params: {
-  scale: 'large' | 'small'
-  standard_set?: string
-  region_grade?: string
-  item_code?: string
-}) {
-  return get<StandardLimit[]>(`${V1}/standards/limits${query(params)}`)
-}
-
-export function getExceedances(params: {
-  standard_set?: string
-  region_grade?: string
-  file_id?: number
-} = {}) {
-  return get<Exceedances>(`${V1}/standards/exceedances${query(params)}`)
 }
 
 // --- 분석 ---
@@ -226,10 +193,50 @@ export function listTerms(params: { query?: string; dict_type?: string } = {}) {
   return get<TermList>(`${V1}/dictionary/terms${query(params)}`)
 }
 
-export function getDictionaryVersion() {
-  return get<DictionaryVersion>(`${V1}/dictionary/version`)
+// --- Open API 키 발급 (관리자) ---
+//
+// 네 경로 모두 ADMIN 만 부를 수 있다 — 일반 계정은 403 ACCESS_DENIED 다
+// (2026-08-21 확인). 화면은 그 403 을 잡아 "관리자 계정이 필요하다" 고 알려야 한다.
+
+export function listOpenApiOrganizations() {
+  return get<OpenApiOrganization[]>(`${V1}/admin/open-api/organizations`)
 }
 
-export function reloadDictionary() {
-  return post<unknown>(`${V1}/admin/reload-dictionary`)
+/** 기업을 만들면서 첫 키까지 함께 발급한다. */
+export function createOpenApiOrganization(body: CreateOrganizationRequest) {
+  return post<OpenApiIssued>(`${V1}/admin/open-api/organizations`, body)
+}
+
+export function listOpenApiKeys(orgId: number) {
+  return get<OpenApiKey[]>(`${V1}/admin/open-api/organizations/${orgId}/keys`)
+}
+
+/** 이미 있는 기업에 키를 하나 더 발급한다. */
+export function issueOpenApiKey(orgId: number, body: IssueKeyRequest) {
+  return post<OpenApiIssued>(`${V1}/admin/open-api/organizations/${orgId}/keys`, body)
+}
+
+/** 키를 폐기한다. 204 라 본문이 없다. */
+export function revokeOpenApiKey(orgId: number, keyId: number) {
+  return del<void>(`${V1}/admin/open-api/organizations/${orgId}/keys/${keyId}`)
+}
+
+// --- Open API 키 발급 (기업 담당자 본인) ---
+//
+// 아직 서버에 없다 — 2026-08-21 확인 시 POST /api/v1/open-api/keys 는
+// 404 RESOURCE_NOT_FOUND 다. 관리자가 대신 발급하는 흐름은 담당자 입장에서 끊기므로
+// 이 경로를 요청해 두었다(docs/백엔드-요청_담당자-직접-발급.md). 화면은 404 를 잡아
+// "서버에 경로가 없다" 고 알려 주고, 경로가 생기면 고칠 것 없이 그대로 동작한다.
+
+export function selfIssueOpenApiKey(body: SelfIssueKeyRequest) {
+  return post<OpenApiIssued>(`${V1}/open-api/keys`, body)
+}
+
+/** 로그인한 사람이 발급받은 키. 원문은 오지 않고 prefix 만 온다. */
+export function listMyOpenApiKeys() {
+  return get<OpenApiKey[]>(`${V1}/open-api/keys`)
+}
+
+export function revokeMyOpenApiKey(keyId: number) {
+  return del<void>(`${V1}/open-api/keys/${keyId}`)
 }

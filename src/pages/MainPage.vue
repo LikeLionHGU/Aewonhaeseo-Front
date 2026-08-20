@@ -210,7 +210,7 @@ onMounted(check)
     </div>
     <div :class="[$style.div4, 'link']" @click="router.push('/data')">내 데이터</div>
     <div :class="[$style.div5, 'link']" @click="router.push('/ask')">분석하기</div>
-    <div :class="$style.div6">문의하기</div>
+    <div :class="[$style.div6, 'link']" @click="router.push('/open-api')">오픈 API 신청</div>
   </div>
   </div>
 </template>
