@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import logo from '../assets/logo.png'
+import wordmark from '../assets/wordmark.svg'
 import ontologyImage from '../assets/feature-ontology.png'
 import nlSqlImage from '../assets/feature-nl-sql.png'
 import evidenceImage from '../assets/feature-evidence.png'
@@ -25,7 +25,7 @@ const router = useRouter()
     <div :class="$style.div2">복잡한 수질 데이터 취합부터 근거 확인까지, 질문 한 줄로 통계와 원본 출처를 한눈에.</div>
     <div :class="[$style.inner, 'btn', 'btn-fill']" @click="router.push('/main')" />
     <div :class="[$style.div3, 'btn-label']">지금 시작하기</div>
-    <img :class="[$style.caAaca4862A5402b585a54a82eIcon, 'link']" :src="logo" alt="로고" @click="router.push('/')" />
+    <img :class="[$style.caAaca4862A5402b585a54a82eIcon, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
     <div :class="$style.child2" />
     <b :class="$style.ai">질문부터 검증까지, 3개 AI 레이어의 정밀한 흐름.<br/>데이터 취합부터 출처 검증까지, 3단계로 완성되는 AI 분석.</b>
     <b :class="$style.b3">질문부터 근거 확인까지, 세 단계면 끝.</b>
@@ -183,9 +183,8 @@ const router = useRouter()
   position: absolute;
   top: 49px;
   left: 100px;
-  width: 32px;
-  height: 40px;
-  object-fit: cover;
+  width: 144px;
+  height: 35px;
   flex-shrink: 0;
 }
 .child2 {
