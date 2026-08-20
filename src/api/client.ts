@@ -109,9 +109,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 터지면서 진짜 상태 코드를 가려버리는 걸 막는다.
   const text = await res.text()
   let body: unknown = null
+  let isJson = false
   if (text) {
     try {
       body = JSON.parse(text)
+      isJson = true
     } catch {
       body = text
     }
@@ -120,6 +122,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     notifyUnauthorized(res.status, path)
     throw await toError(res, body)
+  }
+
+  /*
+   * 200 인데 JSON 이 아니면 데이터로 받아선 안 된다.
+   *
+   * /api 를 중계하지 않는 정적 호스팅에 올리면 모든 /api 요청에 index.html 이
+   * 200 으로 돌아온다(2026-08-21 Cloudflare Pages 에서 확인). 그걸 그대로 통과시키면
+   * getMe() 가 HTML 문자열을 사용자로 돌려주고, 로그인하지 않았는데 로그인한 것으로
+   * 보인다 — 화면은 열리고 데이터만 비어서 원인을 찾기 어렵다. 여기서 끊는다.
+   */
+  if (text && !isJson) {
+    throw new ApiError(
+      res.status,
+      'NOT_JSON',
+      'API 응답이 아니라 다른 것이 왔어요. /api 중계 설정을 확인해 주세요',
+    )
   }
   return body as T
 }
