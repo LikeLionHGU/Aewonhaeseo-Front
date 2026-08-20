@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import wordmark from '../assets/wordmark.svg'
 import checkIcon from '../assets/check.svg'
@@ -49,6 +49,21 @@ const PREVIEW_ROW_TOPS = [1441, 1554, 1673]
 // 값 영역이 시작하는 y 와, 3행일 때 끝나는 y. 행이 적으면 그만큼 줄인다.
 const PREVIEW_BODY_TOP = 1396
 const PREVIEW_BODY_BOTTOM = 1738
+/** 값 칸의 폭. .previewHead · .previewCell 의 width 와 같아야 한다. */
+const PREVIEW_COL_WIDTH = 205
+
+/**
+ * 확인 중인 칸을 감싸는 강조 밴드의 좌우 여백.
+ *
+ * 원본은 밴드 폭이 160px 로 박혀 있고 시작도 칸보다 52px 앞이었다. 그래서 날짜처럼
+ * 조금 긴 값(약 115px)은 오른쪽이 밴드 밖으로 나가고 왼쪽에는 값 없는 파란 띠가
+ * 남았다. 칸 간격이 222·252·292px 로 들쭉날쭉해서 고정 폭으로는 어느 칸에도 맞지 않는다.
+ *
+ * 8px 이 한계다 — 가장 좁은 간격(222)에서 값 칸(205)을 빼면 17px 뿐이라, 더 벌리면
+ * 옆 칸 글자에 밴드가 닿는다.
+ */
+const PREVIEW_HIGHLIGHT_PAD = 8
+const highlightLeft = (slot: number) => PREVIEW_LEFTS[slot] - PREVIEW_HIGHLIGHT_PAD
 
 // --- 데이터 ---
 
@@ -197,6 +212,58 @@ const previewBodyBottom = computed(
 )
 const previewHighlightHeight = computed(() => previewBodyBottom.value - PREVIEW_BODY_TOP)
 
+/**
+ * 강조할 칸의 실제 글자 폭.
+ *
+ * 값 칸은 205px 짜리 상자인데 글자는 왼쪽에 붙는다. 상자 폭에 맞춰 밴드를 그리면
+ * 날짜(약 115px) 오른쪽에 빈 파란 자리가 100px 가까이 남아 감싼 모양이 되지 않는다.
+ * 그래서 그려진 글자를 재서 그만큼만 감싼다.
+ *
+ * scrollWidth 로는 못 잰다 — 상자보다 좁은 글자에는 상자 폭(205)을 그대로 돌려준다.
+ * 그래서 Range 로 글자만 잰다. 캔버스에 배율이 걸려 있어 실측값은 화면 px 이지만,
+ * 같은 상자의 폭과 비율을 내면 배율이 상쇄돼 디자인 좌표가 나온다 — 창 크기가
+ * 바뀌어도 다시 재지 않아도 된다.
+ *
+ * 재기 전(또는 실패)에는 상자 폭으로 둔다. 좁게 잘린 밴드가 보이는 일이 없게.
+ */
+const measuredWidth = ref(PREVIEW_COL_WIDTH)
+const targetCells = ref<HTMLElement[]>([])
+
+function collectCell(el: unknown, slot: number) {
+  if (slot !== previewWindow.value.targetSlot) return
+  if (el instanceof HTMLElement) targetCells.value.push(el)
+}
+
+function measureTarget() {
+  let widest = 0
+  for (const el of targetCells.value) {
+    const box = el.getBoundingClientRect()
+    if (!box.width) continue
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    const text = range.getBoundingClientRect()
+    widest = Math.max(widest, (text.width / box.width) * PREVIEW_COL_WIDTH)
+  }
+  measuredWidth.value = widest ? Math.min(PREVIEW_COL_WIDTH, Math.ceil(widest)) : PREVIEW_COL_WIDTH
+}
+
+const highlightWidth = computed(() => measuredWidth.value + PREVIEW_HIGHLIGHT_PAD * 2)
+
+// 고른 칸이나 미리보기 내용이 바뀌면 다시 잰다. flush: 'post' 라 새로 그려진 뒤에
+// 재고, 밴드 폭은 절대 배치라 셀 배치에 영향을 주지 않아 되돌이가 생기지 않는다.
+watch(
+  () => [previewWindow.value.targetSlot, previewWindow.value.rows, selected.value],
+  () => {
+    targetCells.value = []
+    void nextTick(measureTarget)
+  },
+  { flush: 'post', deep: true },
+)
+
+onMounted(() => {
+  // 웹폰트가 늦게 오면 글자 폭이 달라진다. 준비된 뒤 한 번 더 잰다.
+  void document.fonts?.ready.then(measureTarget)
+})
 /** 행과 행 사이에만 선을 긋는다. 빈 슬롯에 선이 남으면 빈 행처럼 보인다. */
 const previewDividers = computed(() =>
   PREVIEW_ROW_TOPS.slice(0, previewRowCount.value - 1).map(
@@ -459,13 +526,16 @@ onMounted(load)
       <b :class="$style.b13">실제 값 미리보기</b>
       <div :class="$style.previewColHeaderBg" />
       <div v-if="previewWindow.targetSlot >= 0" :class="$style.previewColHighlight"
-           :style="{ left: `${PREVIEW_LEFTS[previewWindow.targetSlot] - 52}px`,
+           :style="{ left: `${highlightLeft(previewWindow.targetSlot)}px`,
+                     width: `${highlightWidth}px`,
                      height: `${previewHighlightHeight}px` }" />
       <b v-for="(header, c) in previewWindow.headers" :key="header" :class="$style.previewHead"
+         :ref="(el) => collectCell(el, c)"
          :style="{ left: `${PREVIEW_LEFTS[c]}px` }" :title="header">{{ header }}</b>
       <div v-for="top in previewDividers" :key="top" :class="$style.previewDivider" :style="{ top: `${top}px` }" />
       <template v-for="(row, r) in previewWindow.rows" :key="r">
         <div v-for="(value, c) in row" :key="c" :class="$style.previewCell"
+             :ref="(el) => collectCell(el, c)"
              :style="{ top: `${PREVIEW_ROW_TOPS[r]}px`, left: `${PREVIEW_LEFTS[c]}px` }"
              :title="value">{{ value }}</div>
       </template>
@@ -967,14 +1037,12 @@ onMounted(load)
   width: 1102px;
   height: 70px;
 }
-/* 확인 중인 컬럼을 세로로 강조 */
+/* 확인 중인 컬럼을 세로로 강조. 좌표와 폭은 칸마다 달라서 인라인으로 준다 —
+   PREVIEW_HIGHLIGHT_PAD 쪽 주석에 이유를 적어 두었다. */
 .previewColHighlight {
   position: absolute;
   top: 1396px;
-  left: 1264px;
   background-color: #eff5fe;
-  width: 160px;
-  height: 342px;
 }
 /* 원본은 '측정일' 같은 짧은 이름만 가정해 폭이 86px 이었다. 실제 컬럼명은
    '생물화학적산소요구량'처럼 길어서 줄바꿈되며 헤더 띠를 넘어간다.
