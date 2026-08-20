@@ -10,10 +10,14 @@
  * 요청에는 그 쿠키를 붙이지 않는다. 그래서 같은 출처로 중계한다 — 개발의 vite 프록시,
  * Deno 배포의 serve.ts 와 같은 구조다.
  *
- * vercel.json 의 rewrite 로도 중계는 되지만, 그 경로로는 로그인이 막힐 수 있다.
- * 브라우저는 같은 출처라도 POST 에 Origin 을 붙이고, 그게 백엔드로 넘어가면 CORS
- * 검사에 걸려 403 이 된다 — 허용 목록에 http://localhost:5173 하나뿐이다.
- * 그래서 rewrite 대신 함수로 두고 Origin 을 떼어 보낸다.
+ * vercel.json 의 rewrite 만으로 백엔드에 바로 넘기는 방법은 쓸 수 없다. 브라우저는 같은
+ * 출처라도 POST 에 Origin 을 붙이고, 그게 백엔드로 넘어가면 CORS 검사에 걸려 403 이 된다 —
+ * 허용 목록에 http://localhost:5173 하나뿐이다. 그래서 함수를 거쳐 Origin 을 떼어 보낸다.
+ *
+ * 원래 파일 이름이 api/[...path].ts 였는데, Next.js 가 아닌 프로젝트에서 그 catch-all 은
+ * 한 조각만 잡는다 — /api/x 는 함수까지 왔지만 /api/v1/auth/me 는 404 였다
+ * (2026-08-21 배포에서 확인). 그래서 평범한 이름으로 두고 vercel.json 의 rewrite 가
+ * 경로를 awonPath 로 넘겨 준다.
  */
 export const config = { runtime: 'edge' }
 
@@ -46,11 +50,45 @@ function forwardHeaders(source: Headers) {
   return headers
 }
 
+/**
+ * vercel.json 이 /api/(.*) 를 이 함수로 보내면서 잡은 부분을 awonPath 로 붙여 준다.
+ * rewrite 를 거치면 request.url 은 목적지(/api/proxy)라 원래 경로가 사라지므로,
+ * 그 값으로 되살린다.
+ */
+const PATH_PARAM = 'awonPath'
+
+/**
+ * awonPath 만 떼어내고 원래 쿼리는 글자 그대로 남긴다.
+ *
+ * URLSearchParams 로 지우면 남은 쿼리가 다시 직렬화된다 — 지점명 같은 한글 값과
+ * 공백이 그 과정에서 모양이 바뀔 수 있다. 백엔드는 인코딩에 민감해서(한글을 그냥
+ * 붙이면 톰캣이 400 으로 끊는다) 손대지 않는 편이 안전하다.
+ */
+function splitPath(search: string) {
+  const pairs = search.slice(1).split('&').filter(Boolean)
+  const carried = pairs.find((pair) => pair.startsWith(`${PATH_PARAM}=`))
+  if (carried === undefined) return null
+  const rest = pairs.filter((pair) => pair !== carried)
+  return {
+    path: decodeURIComponent(carried.slice(PATH_PARAM.length + 1)),
+    search: rest.length ? `?${rest.join('&')}` : '',
+  }
+}
+
 export default async function handler(request: Request): Promise<Response> {
   const backend = process.env.BACKEND_ORIGIN ?? DEFAULT_BACKEND
   const url = new URL(request.url)
-  // pathname 은 이미 /api/... 다. 그대로 백엔드에 붙인다.
-  const target = new URL(url.pathname + url.search, backend)
+
+  const carried = splitPath(url.search)
+  if (!carried) {
+    // rewrite 를 거치지 않고 함수 주소로 바로 온 요청이다. 넘길 경로가 없다.
+    return Response.json(
+      { error: { code: 'NOT_FOUND', message: '중계할 경로가 없어요.' } },
+      { status: 404 },
+    )
+  }
+
+  const target = new URL(`/api/${carried.path}${carried.search}`, backend)
 
   try {
     const upstream = await fetch(target.toString(), {
