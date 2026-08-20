@@ -235,12 +235,39 @@ function formatValue(value: number) {
 // --- 요약 ---
 
 const overPoints = computed(() => points.value.filter((p) => p.over))
+
+/**
+ * 기준선이 없는 이유.
+ *
+ * '기준선 없음' 만 띄우면 막다른 길이다. 이유는 대개 둘 중 하나이고 둘 다 사용자가
+ * 고칠 수 있다 — 기준치 세트를 아예 안 골랐거나, 배출규모를 비워 둔 것이다.
+ * BOD·총유기탄소·부유물질은 규모에 따라 기준이 갈려서, 규모를 정하지 않으면 서버가
+ * 그 항목의 기준선을 주지 않는다(2026-08-20 확인). 같은 결과 안의 총질소·총인·pH
+ * 처럼 규모와 무관한 항목은 기준선이 있으므로, 그것도 알려 준다.
+ */
+const limitHint = computed(() => {
+  const c = conditions.value
+  if (!c?.standard_set) return '기준치를 고르지 않아 기준선이 없어요'
+  // 규모를 채워도 기준치가 없는 항목이 있다 — 화학적산소요구량은 기준치 표에
+  // 아예 없다(2026-08-20 확인). 그래서 '나온다' 고 단정하지 않는다.
+  if (!c.scale) return '배출규모를 지정하면 기준선이 나올 수 있어요'
+  return '이 항목에는 적용할 기준치가 없어요'
+})
+
+const hasLimit = (code: string) =>
+  (result.value?.limits ?? []).some((l) => l.item_code === code)
+
+/** 이 결과 안에서 기준선이 있는 다른 항목들. 항목만 바꿔도 볼 수 있다는 뜻이다. */
+const itemsWithLimit = computed(() =>
+  (result.value?.limits ?? []).map((l) => l.item_code).filter((code) => code !== activeItem.value),
+)
+
 const summaryHead = computed(() => {
   if (!result.value) return ''
   const site = conditions.value?.site_names?.length ? conditions.value.site_names.join(', ') : '전체 지점'
   const limit = itemLimit.value
   const head = `${site} ${termName(activeItem.value)} ${bucketLabel.value} ${metricLabel.value}`
-  if (!limit) return `${head} · 기준선 없음`
+  if (!limit) return `${head} · ${limitHint.value}`
   const range =
     limit.limit_min !== undefined
       ? `${limit.limit_min}~${limit.limit_max}${limit.unit ?? ''}`
@@ -255,8 +282,16 @@ const summaryNote = computed(() => {
     const how = worst.violation?.kind === 'under' ? '하한 미달' : '상한 초과'
     parts.push(`${worst.label} ${formatValue(worst.value)}${valueUnit.value} ${how} ${worst.violation?.rate}%`)
   }
+  // 기준선이 없는 항목에 떨어졌을 때, 같은 결과 안에 기준선 있는 항목이 있으면
+  // 항목만 바꾸면 된다는 걸 알려 준다. 다시 분석할 필요가 없다.
+  if (!itemLimit.value && itemsWithLimit.value.length) {
+    // 목록은 쉼표로 묶는다. ' · ' 로 이으면 뒤따르는 서버 설명이 목록의 마지막
+    // 항목처럼 읽힌다 — "총인 · 폐수배출규모를 지정하지 않아…" 처럼.
+    parts.push(`기준선이 있는 항목: ${itemsWithLimit.value.map(termName).join(', ')}`)
+  }
   if (result.value.assumptions.length) parts.push(...result.value.assumptions)
-  return parts.join(' · ') || '기준을 넘은 구간이 없어요'
+  if (!parts.length) return '기준을 넘은 구간이 없어요'
+  return parts.join(' · ')
 })
 
 // --- 조건 칩 ---
@@ -266,7 +301,13 @@ const conditionChips = computed(() => {
   if (!c) return []
   return [
     { label: '지점', value: c.site_names?.length ? c.site_names.join(', ') : '전체' },
-    { label: '항목', value: termName(activeItem.value) || '전체' },
+    /*
+     * 이 줄은 '분석에 넣은 조건' 이라 요청한 값을 보여야 한다. 전에는 지금
+     * 그려지는 항목(activeItem)을 보여줘서, 항목을 전체로 두고 돌리면 조건이
+     * '항목 생물화학적산소요구량' 으로 찍혔다 — 요청은 전체였는데도. 어떤 항목을
+     * 그리고 있는지는 그래프 위 제목과 항목 선택 칸이 알려 준다.
+     */
+    { label: '항목', value: c.item_codes?.length ? c.item_codes.map(termName).join(', ') : '전체' },
     { label: '기간', value: c.from && c.to ? `${c.from} ~ ${c.to}` : '전체' },
     { label: '집계', value: `${bucketLabel.value} ${metricLabel.value}` },
     { label: '기준치', value: c.standard_set ? `${c.standard_set} · ${c.region_grade ?? '-'}` : '없음' },
@@ -398,7 +439,7 @@ onMounted(load)
   <div :class="$style.div" :style="{ transform: `translateX(${offsetX}px) scale(${scale})`, height: `${designHeight}px` }">
     <b :class="[$style.b, 'link']" @click="router.push('/data')">내 데이터</b>
     <div :class="[$style.div2, 'link']" @click="router.push('/ask')">분석하기</div>
-    <div :class="$style.div3">문의하기</div>
+    <div :class="[$style.div3, 'link']" @click="router.push('/open-api')">오픈 API 신청</div>
     <b :class="$style.bod">분석 결과</b>
     <img :class="[$style.wordmark, 'link']" :src="wordmark" alt="물어볼래" @click="router.push('/')" />
     <AccountMenu />
@@ -454,7 +495,11 @@ onMounted(load)
     <b :class="$style.b10">항목</b>
     <select v-model="selectedItem" :class="[$style.tabSelect, $style.compareSelect]"
             :style="caret" aria-label="표시할 측정 항목">
-      <option v-for="code in itemCodes" :key="code" :value="code">{{ termName(code) }}</option>
+      <!-- 항목마다 기준선이 있는지 표시한다. 항목을 전체로 두면 여러 항목이 한꺼번에
+           오는데, 그중 어떤 것에 기준선이 붙는지는 골라 보기 전엔 알 수 없었다. -->
+      <option v-for="code in itemCodes" :key="code" :value="code">
+        {{ termName(code) }}{{ hasLimit(code) ? '' : ' (기준선 없음)' }}
+      </option>
       <option v-if="!itemCodes.length" value="">항목 없음</option>
     </select>
 
