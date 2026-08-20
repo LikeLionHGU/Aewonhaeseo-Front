@@ -6,8 +6,15 @@ import searchIcon from "../assets/search.png";
 import AccountMenu from "../components/AccountMenu.vue";
 import { useDesignScale } from "../composables/useDesignScale";
 import { useTermNames } from "../composables/useTermNames";
-import { listAnalyses, parseConditions } from "../api";
-import type { AnalysisHistoryItem } from "../api";
+import { getAnalysisOptions, listAnalyses, parseConditions } from "../api";
+import type { AnalysisHistoryItem, AnalysisOptions } from "../api";
+import {
+  BUCKET_LABEL,
+  METRIC_LABEL,
+  describeParsed,
+  parseQuestion,
+} from "../lib/parseQuestion";
+import type { QuestionVocabulary } from "../lib/parseQuestion";
 
 const DESIGN_WIDTH = 1920;
 const DESIGN_HEIGHT = 2181;
@@ -18,14 +25,72 @@ const { loadTerms, termName } = useTermNames();
 
 const PLACEHOLDER = "예: 낙동강 BOD 지난 1년 월별 평균을 보여줘";
 const query = ref("");
-const canSubmit = computed(() => query.value.trim().length > 0);
+const hasText = computed(() => query.value.trim().length > 0);
 
-// 자연어를 해석하는 API 가 없어서 질문은 조건 화면으로 넘겨 보여주기만 한다.
-// 실제 조건은 거기서 직접 고른다.
+/**
+ * 질문을 조건 화면으로 넘긴다. 거기서 parseQuestion 이 같은 규칙으로 다시 읽어
+ * 선택 상태를 채우고, 읽어내지 못한 조건만 사용자가 고른다.
+ */
 function submit() {
   if (!canSubmit.value) return;
   router.push({ name: "conditions", query: { q: query.value.trim() } });
 }
+
+/** 질문 없이 조건만 골라 분석하는 길. 읽어낼 게 없는 문장에 갇히지 않게 둔다. */
+function pickConditions() {
+  router.push({ name: "conditions" });
+}
+
+// --- 질문 해석 미리보기 ---
+//
+// 다음 화면으로 넘어가야 결과를 알 수 있으면, 무엇을 어떻게 적어야 하는지 배울
+// 길이 없다. 입력하는 동안 읽어낸 조건을 그대로 보여준다. 조건 화면과 같은
+// parseQuestion 을 쓰므로 여기 보이는 것과 저기 채워지는 것이 어긋나지 않는다.
+
+const options = ref<AnalysisOptions | null>(null);
+
+/** 지점·항목은 서버에 실제로 데이터가 있는 것만 후보로 둔다. */
+const vocabulary = computed<QuestionVocabulary>(() => ({
+  sites: options.value?.sites ?? [],
+  items: (options.value?.items ?? []).map((item) => ({
+    code: item.item_code,
+    name: termName(item.item_code),
+  })),
+}));
+
+const parsed = computed(() => parseQuestion(query.value, vocabulary.value));
+const readParts = computed(() =>
+  hasText.value ? describeParsed(parsed.value, termName) : [],
+);
+
+/**
+ * 보낼 수 있는 질문인지.
+ *
+ * 조건을 하나도 읽어내지 못한 문장은 넘겨도 다음 화면에서 채워지는 게 없다.
+ * 화면은 "읽어낸 조건이 없어요" 라고 말하면서 버튼은 눌리게 두는 건 앞뒤가
+ * 맞지 않으니 막는다. 대신 조건을 직접 고르는 길을 옆에 낸다 — 규칙 기반이라
+ * 멀쩡한 질문도 못 읽을 때가 있고, 그때 갇히면 안 된다.
+ *
+ * 지점·항목 후보(/analyses/options)를 아직 못 받았거나 받기에 실패했으면 막지
+ * 않는다. 그 상태에서는 지점·항목을 읽을 방법이 없어서, 멀쩡한 질문까지
+ * 못 읽은 것으로 몰리기 때문이다.
+ */
+const vocabularyReady = computed(() => Boolean(options.value));
+const canSubmit = computed(
+  () => hasText.value && (parsed.value.found.length > 0 || !vocabularyReady.value),
+);
+
+/** 읽어낸 게 없어서 막힌 상태. 안내 문구와 대안을 함께 보여준다. */
+const blocked = computed(() => hasText.value && !readParts.value.length && vocabularyReady.value);
+
+const readout = computed(() => {
+  if (!hasText.value) return "";
+  if (!readParts.value.length) return "아직 읽어낸 조건이 없어요 — 예: 작년 BOD 월별 평균";
+  return `이렇게 이해했어요 — ${readParts.value.join(" · ")}`;
+});
+
+/** 읽어낸 게 없을 때는 결과가 아니라 안내다. 색을 낮춰 구분한다. */
+const readoutEmpty = computed(() => hasText.value && !readParts.value.length);
 
 // 템플릿 — 조건 화면의 집계 단위·방식을 미리 채워서 연다.
 const templates = [
@@ -46,19 +111,6 @@ function useTemplate(index: number) {
 const historyLoading = ref(true);
 const historyError = ref("");
 const history = ref<AnalysisHistoryItem[]>([]);
-
-const BUCKET_LABEL: Record<string, string> = {
-  month: "월별",
-  quarter: "분기별",
-  year: "연도별",
-  none: "기간 전체",
-};
-const METRIC_LABEL: Record<string, string> = {
-  avg: "평균",
-  max: "최대",
-  min: "최소",
-  count: "건수",
-};
 
 /** '2026-08-16T20:32:33' → '2026.08.16 20:32 실행' */
 function formatRanAt(iso: string) {
@@ -105,6 +157,21 @@ async function loadHistory() {
   }
 }
 
+/**
+ * 질문 해석에 쓸 지점·항목 목록.
+ *
+ * 실패해도 화면은 그대로 둔다 — 기간·집계는 목록 없이도 읽히고, 조건 화면이
+ * 어차피 같은 목록을 다시 받아 온다. 여기서 오류를 띄우면 정작 할 수 있는 일까지
+ * 못 하는 것처럼 보인다.
+ */
+async function loadVocabulary() {
+  try {
+    options.value = await getAnalysisOptions();
+  } catch {
+    options.value = null;
+  }
+}
+
 function openResult(executionId: string) {
   router.push({ name: "results", query: { executionId } });
 }
@@ -119,7 +186,10 @@ const titleTop = (i: number) => 979 + i * HISTORY_STEP;
 const chipTop = (i: number) => 1024 + i * HISTORY_STEP;
 const buttonTop = (i: number) => 996 + i * HISTORY_STEP;
 
-onMounted(loadHistory);
+onMounted(() => {
+  void loadHistory();
+  void loadVocabulary();
+});
 </script>
 
 <template>
@@ -140,6 +210,23 @@ onMounted(loadHistory);
       <div :class="$style.parent">
         <b :class="$style.b3">수질 데이터에 대해 질문해 보세요</b>
         <img :class="$style.searchIcon" :src="searchIcon" alt="" />
+      </div>
+      <!-- 입력하는 동안 읽어낸 조건을 보여준다. 카드 안에 새 줄을 넣을 자리가
+           없어서 제목과 같은 높이의 빈 오른쪽을 쓴다 — 아래 배치는 그대로다. -->
+      <div
+        v-if="readout"
+        :class="[$style.readout, readoutEmpty && $style.readoutMuted]"
+        :title="readout"
+        aria-live="polite"
+      >
+        {{ readout }}
+        <!-- 읽어낸 게 없으면 질문하기가 막힌다. 조건을 직접 고르는 길을 함께 낸다. -->
+        <span
+          v-if="blocked"
+          :class="[$style.readoutLink, 'link']"
+          role="button"
+          @click="pickConditions"
+        >조건 직접 고르기 →</span>
       </div>
       <div :class="$style.rectangleParent">
         <div :class="$style.groupChild" />
@@ -258,7 +345,7 @@ onMounted(loadHistory);
       <div :class="[$style.div13, 'link']" @click="router.push('/ask')">
         분석하기
       </div>
-      <div :class="$style.div14">문의하기</div>
+      <div :class="[$style.div14, 'link']" @click="router.push('/open-api')">오픈 API 신청</div>
     </div>
   </div>
 </template>
@@ -344,6 +431,32 @@ onMounted(loadHistory);
   top: 0px;
   left: 28px;
   line-height: 45px;
+}
+/* 제목('수질 데이터에 대해 질문해 보세요')은 .parent 가 510px 에서 끝난다.
+   그 오른쪽 빈 자리에 한 줄로 놓아 카드 높이를 건드리지 않는다. 루트가
+   text-align: right 라 정렬을 되돌려야 한다. */
+.readout {
+  position: absolute;
+  top: 574px;
+  left: 540px;
+  width: 1280px;
+  line-height: 45px;
+  font-weight: 600;
+  text-align: left;
+  color: #0053e3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.readoutMuted {
+  font-weight: 500;
+  color: #9ca3af;
+}
+/* 막혔을 때 옆에 붙는 대안. 같은 줄에 두므로 .readout 의 nowrap 을 그대로 탄다. */
+.readoutLink {
+  margin-left: 14px;
+  font-weight: 600;
+  color: #0053e3;
 }
 .searchIcon {
   position: absolute;
