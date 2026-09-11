@@ -1,5 +1,79 @@
-# Vue 3 + TypeScript + Vite
+# 물어볼래
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+**수질 측정 데이터에 말로 묻고, 답과 근거를 함께 받는 서비스.**
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+> 🔗 **[aewonhaeseo-front.vercel.app](https://aewonhaeseo-front.vercel.app)**
+
+```
+"2026년 1분기 가람물재생센터 생물화학적산소요구량 기준 초과 횟수는?"
+```
+
+CSV 한 장을 올리면 위와 같은 질문에 표와 근거로 답합니다.
+
+<br />
+
+## 왜 만들었나
+
+수질 측정 데이터는 **항목 이름이 길고 코드로 관리**됩니다. `생물화학적산소요구량`, `노말헥산추출물질(동식물유지류)`, `구리(동)함유량` 같은 이름이 수백 개고, 기관마다 컬럼 이름도 제각각입니다.
+
+그래서 "이번 분기에 어느 지점이 기준을 넘었나" 같은 단순한 질문에도 스프레드시트를 열어 필터를 걸고 눈으로 세야 했습니다.
+
+**질문을 그대로 던지면 답이 나오도록** 만들었습니다.
+
+<br />
+
+## 기능
+
+| | |
+| --- | --- |
+| **업로드 · 매핑** | CSV를 올리면 컬럼을 표준 항목에 연결합니다. 기관마다 다른 컬럼 이름을 한 번만 맞춰두면 됩니다 |
+| **자연어 질문** | 기간(`2026년 1분기`, `상반기`, `1월 ~ 3월`), 지점, 방류구, 측정 항목을 문장에서 뽑아냅니다 |
+| **결과 · 근거** | 집계 결과와 함께 **어느 행에서 나온 값인지** 원본을 짚어 보여줍니다 |
+| **용어 사전** | 수백 개 항목 코드를 우리말 이름으로 바꿔 보여줍니다. 사전은 한 번만 받아 화면 전체가 공유합니다 |
+| **Open API** | 키를 발급받아 외부에서 같은 질의를 호출할 수 있습니다 |
+
+<br />
+
+## 질문을 어떻게 읽는가
+
+`src/lib/parseQuestion.ts` 가 문장에서 조건을 뽑습니다. 까다로웠던 지점들입니다.
+
+- **기간 표현이 여러 형태다** — `2026년 1분기` · `2026년 상반기` · `2026년 1월 ~ 3월` 을 모두 같은 구간으로 해석합니다
+- **항목 이름에 꼬리가 붙는다** — `~함유량`, `~추출물질` 처럼 긴 꼬리를 먼저 떼야 짧은 꼬리에 잘못 걸리지 않습니다
+- **괄호 안팎이 모두 이름이다** — `구리(동)함유량` 은 괄호 앞부분도 후보로 둡니다
+- **애매하면 고르지 않는다** — 같은 점수가 둘 이상이면 임의로 정하지 않고 사용자에게 되묻습니다
+
+<br />
+
+## 기술
+
+`Vue 3` `TypeScript` `Vite` `Vue Router`
+
+```bash
+npm install
+npm run dev       # 개발 서버
+npm run build     # vue-tsc 타입 검사 후 빌드
+npm run preview   # 빌드 결과 미리보기
+```
+
+API 호출은 프록시를 거칩니다 — Vercel은 `api/proxy.ts`, Cloudflare Pages는 `functions/api/[[path]].ts` 를 씁니다.
+
+<br />
+
+## 구조
+
+```
+src/
+├─ views/            화면 (랜딩 · 질문 · 조건 · 결과 · 근거 · 업로드 · 매핑 · Open API)
+├─ composables/      useAuth · useTermNames(용어 사전) · useDesignScale
+├─ lib/
+│  └─ parseQuestion.ts   문장에서 기간·지점·항목을 뽑아내는 곳
+└─ components/
+public/sample/       수질 데이터 샘플 CSV
+```
+
+<br />
+
+---
+
+멋쟁이사자처럼 한동대학교 · 애원해서 팀
