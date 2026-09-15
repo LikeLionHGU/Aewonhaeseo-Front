@@ -5,7 +5,7 @@ import { serveDir } from '@std/http/file-server'
 // https 여야 한다. 이 서버가 https 로 서빙되는데 백엔드를 http 로 부르면 중계
 // 구간만 평문이 되고, 인증 쿠키(Secure)가 오가는 경로라 그대로 두면 안 된다.
 // sslip.io 호스트명으로 IP 서버에 Let's Encrypt 인증서가 붙어 있다.
-const BACKEND = Deno.env.get('BACKEND_ORIGIN') ?? 'https://1-201-116-24.sslip.io'
+const BACKEND = Deno.env.get('BACKEND_ORIGIN') ?? 'https://15-165-5-198.sslip.io'
 const PORT = Number(Deno.env.get('PORT') ?? 8000)
 
 /**

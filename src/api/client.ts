@@ -3,9 +3,11 @@
 // 기본값을 빈 문자열로 두면 같은 출처로 요청이 나가고, 개발 중에는
 // vite.config.ts 의 프록시가 /api 를 백엔드로 넘긴다.
 //
-// 백엔드에 CORS 허용 목록이 생겼지만(2026-08-19 확인) http://localhost:5173
-// 하나뿐이다. 배포 환경에서 출처가 갈리면 VITE_API_BASE 로 덮어쓰되, 그 출처를
-// 백엔드 허용 목록에 넣고 인증 쿠키가 오가야 하니 credentials 도 함께 열어야 한다.
+// 백엔드 CORS 허용 목록은 https://aewonhaeseo-front.vercel.app · http://localhost:5173 ·
+// http://localhost:3000 이다(2026-09-15). 목록에 있어도 백엔드를 직접 부르면 안 된다 —
+// 인증 쿠키가 SameSite=Strict 라 다른 사이트에서 시작된 요청에는 실리지 않는다. 그래서
+// 모든 환경이 같은 출처 /api 로 중계한다(vite 프록시 · serve.ts · api/proxy.ts).
+// VITE_API_BASE 는 백엔드를 같은 사이트에 둘 수 있을 때만 쓴다.
 const BASE = import.meta.env.VITE_API_BASE ?? ''
 
 /** 서버가 {"error":{"code","message"}} 로 내려주는 실패 응답. */
