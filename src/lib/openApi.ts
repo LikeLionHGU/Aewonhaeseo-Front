@@ -6,4 +6,4 @@
  * 쓴다. 배포 환경이 다르면 VITE_OPEN_API_BASE 로 덮어쓴다.
  */
 export const OPEN_API_BASE =
-  import.meta.env.VITE_OPEN_API_BASE ?? 'https://1-201-116-24.sslip.io'
+  import.meta.env.VITE_OPEN_API_BASE ?? 'https://15-165-5-198.sslip.io'

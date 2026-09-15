@@ -10,9 +10,11 @@
  * 요청에는 그 쿠키를 붙이지 않는다. 그래서 같은 출처로 중계한다 — 개발의 vite 프록시,
  * Deno 배포의 serve.ts 와 같은 구조다.
  *
- * vercel.json 의 rewrite 만으로 백엔드에 바로 넘기는 방법은 쓸 수 없다. 브라우저는 같은
- * 출처라도 POST 에 Origin 을 붙이고, 그게 백엔드로 넘어가면 CORS 검사에 걸려 403 이 된다 —
- * 허용 목록에 http://localhost:5173 하나뿐이다. 그래서 함수를 거쳐 Origin 을 떼어 보낸다.
+ * vercel.json 의 rewrite 만으로 백엔드에 바로 넘기는 방법은 쓰지 않는다. 브라우저는 같은
+ * 출처라도 POST 에 Origin 을 붙이고, 그게 백엔드로 넘어가면 CORS 검사를 탄다. 허용 목록에
+ * https://aewonhaeseo-front.vercel.app 이 들어가 운영 주소는 통과하지만, 브랜치마다 생기는
+ * 미리보기 주소(…-git-브랜치.vercel.app)는 목록에 없어 403 이 된다. 그래서 함수를 거쳐
+ * Origin 을 떼어 보낸다 — 어느 주소로 열어도 똑같이 동작한다.
  *
  * 원래 파일 이름이 api/[...path].ts 였는데, Next.js 가 아닌 프로젝트에서 그 catch-all 은
  * 한 조각만 잡는다 — /api/x 는 함수까지 왔지만 /api/v1/auth/me 는 404 였다
@@ -22,7 +24,7 @@
 export const config = { runtime: 'edge' }
 
 /** 배포 환경에서 BACKEND_ORIGIN 환경변수로 덮어쓴다. */
-const DEFAULT_BACKEND = 'https://1-201-116-24.sslip.io'
+const DEFAULT_BACKEND = 'https://15-165-5-198.sslip.io'
 
 /**
  * 백엔드로 넘기지 않을 헤더.

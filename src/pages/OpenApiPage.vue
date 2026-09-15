@@ -27,12 +27,12 @@ const canvasHeight = useCanvasHeight(canvas)
 /**
  * API 문서 주소.
  *
- * 백엔드가 springdoc 문서를 인증 없이 열어 둔다(2026-08-20 확인 — /swagger-ui/index.html
+ * 백엔드가 springdoc 문서를 인증 없이 열어 둔다(2026-09-15 확인 — /swagger-ui/index.html
  * 200). /api 만 프록시를 타므로 같은 출처로는 닿지 않아 절대 주소를 쓴다. 배포 환경이
  * 다르면 VITE_API_DOCS_URL 로 덮어쓴다.
  */
 const API_DOCS_URL =
-  import.meta.env.VITE_API_DOCS_URL ?? 'https://1-201-116-24.sslip.io/swagger-ui/index.html'
+  import.meta.env.VITE_API_DOCS_URL ?? 'https://15-165-5-198.sslip.io/swagger-ui/index.html'
 
 function goToApply() {
   router.push({ name: 'open-api-apply' })

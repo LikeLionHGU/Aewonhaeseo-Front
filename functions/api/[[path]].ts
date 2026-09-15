@@ -13,14 +13,14 @@
  */
 
 /** 배포 환경에서 Pages 환경변수 BACKEND_ORIGIN 으로 덮어쓸 수 있다. */
-const DEFAULT_BACKEND = 'https://1-201-116-24.sslip.io'
+const DEFAULT_BACKEND = 'https://15-165-5-198.sslip.io'
 
 /**
  * 백엔드로 넘기지 않을 헤더.
  *
  * origin·referer 를 그대로 넘기면 백엔드가 브라우저 요청으로 보고 CORS 를 검사해
- * 403 "Invalid CORS request" 를 낸다. 허용 목록에 localhost:5173 하나만 있어서
- * 배포 주소는 무조건 막힌다. 중계는 서버 대 서버 호출이라 CORS 대상이 아니므로 뗀다.
+ * 403 "Invalid CORS request" 를 낸다. 허용 목록은 vercel 운영 주소와 localhost:5173·3000
+ * 뿐이라 Pages 주소는 무조건 막힌다. 중계는 서버 대 서버 호출이라 CORS 대상이 아니므로 뗀다.
  * 나머지는 홉 단위 헤더이거나 fetch 가 다시 만든다.
  */
 const DROP_HEADERS = new Set([
